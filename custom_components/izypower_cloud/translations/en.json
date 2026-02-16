@@ -1,0 +1,274 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Izypower Cloud: Configure",
+        "description": "Enter your Izypower Cloud credentials and settings.",
+        "data": {
+          "username": "Username",
+          "password": "Password",
+          "refresh_period": "Refresh period (minutes)"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Reauthenticate Izypower Cloud",
+        "description": "Your Izypower Cloud credentials need to be updated. Enter your username and password.",
+        "data": {
+          "username": "Username",
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid username or password",
+      "cannot_connect": "Unable to connect to Izypower Cloud",
+      "duplicate_username": "This username is already configured. Only one integration per account is allowed."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Izypower Cloud: Options",
+        "description": "Configure refresh period settings.",
+        "data": {
+          "refresh_period": "Refresh period (minutes)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "battery_power": {
+        "name": "Battery Power"
+      },
+      "battery_pv_power": {
+        "name": "Battery PV Power"
+      },
+      "battery_soc": {
+        "name": "Battery State of Charge"
+      },
+      "last_update": {
+        "name": "Last Update"
+      },
+      "consumption_power": {
+        "name": "Consumption"
+      },
+      "grid_power": {
+        "name": "Grid Power"
+      },
+      "production_power": {
+        "name": "PV Production"
+      },
+      "production_month": {
+        "name": "Production Current Month"
+      },
+      "production_year": {
+        "name": "Production Current Year"
+      },
+      "production_total": {
+        "name": "Production Total"
+      },
+      "wifi_signal": {
+        "name": "Wi-Fi Signal"
+      },
+      "wifi_network": {
+        "name": "Wi-Fi Network"
+      },
+      "ip_address": {
+        "name": "IP Address"
+      },
+      "device_battery_soc": {
+        "name": "State of Charge"
+      },
+      "battery_device_energy": {
+        "name": "Energy"
+      },
+      "battery_device_soc": {
+        "name": "State of Charge"
+      },
+      "battery_link_soc": {
+        "name": "State of Charge"
+      },
+      "battery_link_kwh": {
+        "name": "Energy"
+      },
+      "cluster_mode": {
+        "name": "Cluster Mode",
+        "state": {
+          "1000": "Master",
+          "1001": "Slave",
+          "1002": "Standalone"
+        }
+      },
+      "installed_capacity": {
+        "name": "Installed Capacity"
+      },
+      "online_state": {
+        "name": "State",
+        "state": {
+          "0": "Offline",
+          "1": "Online"
+        }
+      },
+      "production_day": {
+        "name": "Production Day"
+      },
+      "grid_day_import": {
+        "name": "Grid Day (Import)"
+      },
+      "grid_day_export": {
+        "name": "Grid Day (Export)"
+      },
+      "grid_month_import": {
+        "name": "Grid Month (Import)"
+      },
+      "grid_month_export": {
+        "name": "Grid Month (Export)"
+      },
+      "grid_year_import": {
+        "name": "Grid Year (Import)"
+      },
+      "grid_year_export": {
+        "name": "Grid Year (Export)"
+      },
+      "grid_total_import": {
+        "name": "Grid Total (Import)"
+      },
+      "grid_total_export": {
+        "name": "Grid Total (Export)"
+      },
+      "consumption_day": {
+        "name": "Consumption Day"
+      },
+      "consumption_month": {
+        "name": "Consumption Month"
+      },
+      "consumption_year": {
+        "name": "Consumption Year"
+      },
+      "consumption_total": {
+        "name": "Consumption Total"
+      },
+      "consumption_from_pv_day": {
+        "name": "Consumption from PV Day"
+      },
+      "consumption_from_pv_month": {
+        "name": "Consumption from PV Month"
+      },
+      "consumption_from_pv_year": {
+        "name": "Consumption from PV Year"
+      },
+      "consumption_from_pv_total": {
+        "name": "Consumption from PV Total"
+      },
+      "battery_day_charge": {
+        "name": "Battery Day (Charge)"
+      },
+      "battery_day_discharge": {
+        "name": "Battery Day (Discharge)"
+      },
+      "battery_month_charge": {
+        "name": "Battery Month (Charge)"
+      },
+      "battery_month_discharge": {
+        "name": "Battery Month (Discharge)"
+      },
+      "battery_year_charge": {
+        "name": "Battery Year (Charge)"
+      },
+      "battery_year_discharge": {
+        "name": "Battery Year (Discharge)"
+      },
+      "battery_total_charge": {
+        "name": "Battery Total (Charge)"
+      },
+      "battery_total_discharge": {
+        "name": "Battery Total (Discharge)"
+      },
+      "cover_rate_all": {
+        "name": "Cover Rate Total"
+      },
+      "cover_rate_day": {
+        "name": "Cover Rate Day"
+      },
+      "cover_rate_month": {
+        "name": "Cover Rate Month"
+      },
+      "cover_rate_year": {
+        "name": "Cover Rate Year"
+      },
+      "storage_in_rate_all": {
+        "name": "Battery Rate Total (Charge)"
+      },
+      "storage_in_rate_day": {
+        "name": "Battery Rate Day (Charge)"
+      },
+      "storage_in_rate_month": {
+        "name": "Battery Rate Month (Charge)"
+      },
+      "storage_in_rate_year": {
+        "name": "Battery Rate Year (Charge)"
+      },
+      "energy_self_rate_all": {
+        "name": "Energy Self Rate Total"
+      },
+      "energy_self_rate_day": {
+        "name": "Energy Self Rate Day"
+      },
+      "energy_self_rate_month": {
+        "name": "Energy Self Rate Month"
+      },
+      "energy_self_rate_year": {
+        "name": "Energy Self Rate Year"
+      },
+      "meter_energy_n_rate_all": {
+        "name": "Grid Rate Total (Export)"
+      },
+      "meter_energy_n_rate_day": {
+        "name": "Grid Rate Day (Export)"
+      },
+      "meter_energy_n_rate_month": {
+        "name": "Grid Rate Month (Export)"
+      },
+      "meter_energy_n_rate_year": {
+        "name": "Grid Rate Year (Export)"
+      },
+      "storage_out_rate_all": {
+        "name": "Battery Rate Total (Discharge)"
+      },
+      "storage_out_rate_day": {
+        "name": "Battery Rate Day (Discharge)"
+      },
+      "storage_out_rate_month": {
+        "name": "Battery Rate Month (Discharge)"
+      },
+      "storage_out_rate_year": {
+        "name": "Battery Rate Year (Discharge)"
+      },
+      "consumption_rate_all": {
+        "name": "Consumption Rate Total"
+      },
+      "consumption_rate_day": {
+        "name": "Consumption Rate Day"
+      },
+      "consumption_rate_month": {
+        "name": "Consumption Rate Month"
+      },
+      "consumption_rate_year": {
+        "name": "Consumption Rate Year"
+      },
+      "meter_energy_p_rate_all": {
+        "name": "Grid Rate Total (Import)"
+      },
+      "meter_energy_p_rate_day": {
+        "name": "Grid Rate Day (Import)"
+      },
+      "meter_energy_p_rate_month": {
+        "name": "Grid Rate Month (Import)"
+      },
+      "meter_energy_p_rate_year": {
+        "name": "Grid Rate Year (Import)"
+      }
+    }
+  }
+}

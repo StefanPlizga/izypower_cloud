@@ -1,0 +1,12 @@
+{
+  "domain": "izypower_cloud",
+  "name": "Izypower Cloud",
+  "version": "1.0.0",
+  "documentation": "https://github.com/StefanPlizga/izypower_cloud/blob/main/README.md",
+  "issue_tracker": "https://github.com/StefanPlizga/izypower_cloud/issues",
+  "requirements": [],
+  "dependencies": [],
+  "codeowners": ["@StefanPlizga"],
+  "iot_class": "cloud_polling",
+  "config_flow": true
+}

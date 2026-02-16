@@ -1,0 +1,7 @@
+{
+  "name": "Izypower Cloud",
+  "render_readme": true,
+  "domains": ["izypower_cloud"],
+  "iot_class": "cloud_polling",
+  "homeassistant": "2024.1.0"
+}
