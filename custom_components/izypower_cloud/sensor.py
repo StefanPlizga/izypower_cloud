@@ -414,7 +414,7 @@ class BatteryLinkEnergySensor(BatteryLinksBaseSensor):
     """Sensor for battery link energy in kWh."""
     
     _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
     
     def __init__(self, coordinator, station_id: int, station_name: str, parent_device_id: int, parent_device_name: str, link_sn: str):
@@ -450,7 +450,7 @@ class BatteryDeviceEnergySensor(BatteryLinksBaseSensor):
     """Sensor for battery device total energy (socKwh) in kWh."""
     
     _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
     
     def __init__(self, coordinator, station_id: int, station_name: str, device_id: int, device_name: str):
