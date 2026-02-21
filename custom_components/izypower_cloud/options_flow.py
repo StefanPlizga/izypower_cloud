@@ -15,6 +15,11 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
         errors = {}
         if user_input is not None:
+            # Validate refresh period
+            refresh_period = user_input.get("refresh_period")
+            if refresh_period is not None and refresh_period < 3:
+                errors["refresh_period"] = "refresh_period_too_low"
+            
             # Check if credentials have changed and validate them
             username = user_input.get("username")
             password = user_input.get("password")
@@ -64,4 +69,4 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
             }
         )
 
-        return self.async_show_form(step_id="init", data_schema=data_schema)
+        return self.async_show_form(step_id="init", data_schema=data_schema, errors=errors)

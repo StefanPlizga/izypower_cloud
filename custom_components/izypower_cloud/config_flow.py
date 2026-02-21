@@ -19,6 +19,12 @@ class IzypowerCloudConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             username = user_input.get("username")
             password = user_input.get("password")
+            refresh_period = user_input.get("refresh_period")
+            
+            # Validate refresh period
+            if refresh_period is not None and refresh_period < 3:
+                errors["refresh_period"] = "refresh_period_too_low"
+            
             # Check for duplicate username (temporarily disabled)
             for entry in self._async_current_entries():
                 if entry.data.get("username") == username:

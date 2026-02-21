@@ -22,7 +22,8 @@
     "error": {
       "invalid_auth": "Nom d'utilisateur ou mot de passe invalide",
       "cannot_connect": "Impossible de se connecter à Izypower Cloud",
-      "duplicate_username": "Ce nom d'utilisateur est déjà configuré. Une seule intégration par compte est autorisée."
+      "duplicate_username": "Ce nom d'utilisateur est déjà configuré. Une seule intégration par compte est autorisée.",
+      "refresh_period_too_low": "La fréquence d'actualisation doit être d'au moins 3 minutes"
     }
   },
   "options": {
@@ -34,6 +35,11 @@
           "refresh_period": "Fréquence d'actualisation (minutes)"
         }
       }
+    },
+    "error": {
+      "invalid_auth": "Nom d'utilisateur ou mot de passe invalide",
+      "cannot_connect": "Impossible de se connecter à Izypower Cloud",
+      "refresh_period_too_low": "La fréquence d'actualisation doit être d'au moins 3 minutes"
     }
   },
   "entity": {

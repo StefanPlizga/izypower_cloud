@@ -22,7 +22,8 @@
     "error": {
       "invalid_auth": "Invalid username or password",
       "cannot_connect": "Unable to connect to Izypower Cloud",
-      "duplicate_username": "This username is already configured. Only one integration per account is allowed."
+      "duplicate_username": "This username is already configured. Only one integration per account is allowed.",
+      "refresh_period_too_low": "Refresh period must be at least 3 minutes"
     }
   },
   "options": {
@@ -34,6 +35,11 @@
           "refresh_period": "Refresh period (minutes)"
         }
       }
+    },
+    "error": {
+      "invalid_auth": "Invalid username or password",
+      "cannot_connect": "Unable to connect to Izypower Cloud",
+      "refresh_period_too_low": "Refresh period must be at least 3 minutes"
     }
   },
   "entity": {
