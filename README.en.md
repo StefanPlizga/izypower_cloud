@@ -2,6 +2,12 @@
 
 This custom integration automatically discovers all Izypower Cloud power stations and provides comprehensive monitoring of your solar installation.
 
+> **Important Note**: This is a community integration and is not developped by Materfrance.
+
+## Acknowledgments
+
+Thanks to Khirale, Charmg31, Wellgo and Zyos67 for testing and feedback.
+
 ## Installation
 
 ### Via HACS (Recommended)

@@ -4,6 +4,12 @@
 
 Cette intégration personnalisée découvre automatiquement toutes les centrales photovoltaïques Izypower Cloud et fournit une surveillance complète de votre installation solaire.
 
+> **Note importante** : Cette intégration est un projet communautaire et n'est pas développée par Materfrance.
+
+## Remerciements
+
+Merci à Khirale, Charmg31, Wellgo et Zyos67 pour leurs tests et retours.
+
 ## Installation
 
 ### Via HACS (Recommandé)
