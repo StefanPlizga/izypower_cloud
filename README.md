@@ -8,7 +8,7 @@ Cette intégration personnalisée découvre automatiquement toutes les centrales
 
 ## Remerciements
 
-Merci à Khirale, Charmg31, Wellgo et Zyos67 pour leurs tests et retours.
+Merci à Khirale, MarcoCMG, Wellgo et Zyos67 pour leurs tests et retours.
 
 ## Installation
 

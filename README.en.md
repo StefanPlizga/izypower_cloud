@@ -6,7 +6,7 @@ This custom integration automatically discovers all Izypower Cloud power station
 
 ## Acknowledgments
 
-Thanks to Khirale, Charmg31, Wellgo and Zyos67 for testing and feedback.
+Thanks to Khirale, MarcoCMG, Wellgo and Zyos67 for testing and feedback.
 
 ## Installation
 
