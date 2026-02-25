@@ -4,6 +4,8 @@
 
 Cette intégration personnalisée découvre automatiquement toutes les centrales photovoltaïques Izypower Cloud et fournit une surveillance complète de votre installation solaire.
 
+**Il faut disposer d'un compte Izypower pour faire fonctionner cette intégration, seuls les appareils de la gamme Izypower de Materfrance sont supportés par cette intégration.**
+
 > **Note importante** : Cette intégration est un projet communautaire et n'est pas développée par Materfrance.
 
 ## Remerciements
@@ -105,6 +107,7 @@ Merci à Khirale, MarcoCMG, Wellgo et Zyos67 pour leurs tests et retours.
 - Puissance individuelle par chaîne PV (PV1, PV2, etc.) en Watts
 
 **Capteurs Spécifiques** (selon le type d'appareil) :
+- Température (°C) - pour les micro-onduleurs
 - État de Charge Moyen (%) - pour les appareils avec batterie intégrée
 - Mode Cluster - pour les appareils en configuration multi-onduleur (Maître/Esclave/Autonome)
 
@@ -115,6 +118,17 @@ Pour les batteries avec modules/liens individuels, des sous-appareils supplémen
 **Appareil Batterie Parent** :
 - État de Charge (%)
 - Énergie (kWh)
+- Charge depuis Source Externe (W)
+- Charge depuis PV (W)
+- Temps de Charge Restant (min)
+- Décharge depuis Batterie (W)
+- Décharge depuis PV (W)
+- Temps de Décharge Restant (min)
+- Consommation Électrique (W)
+- Puissance Batterie (W)
+- Surplus Solaire (W)
+- Solaire Direct (W)
+- Puissance Prise Secours (W)
 
 **Sous-Appareils de Lien de Batterie** (par module de batterie individuel) :
 - État de Charge (%)

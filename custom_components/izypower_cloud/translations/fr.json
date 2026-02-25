@@ -99,6 +99,47 @@
       "battery_link_kwh": {
         "name": "Énergie"
       },
+      "charge_from_external": {
+        "name": "Charge Depuis Source Externe"
+      },
+      "charge_from_pv": {
+        "name": "Charge Depuis PV"
+      },
+      "charging_time": {
+        "name": "Temps de charge"
+      },
+      "discharge_from_battery": {
+        "name": "Décharge Depuis Batterie"
+      },
+      "discharge_from_pv": {
+        "name": "Décharge Depuis PV"
+      },
+      "discharging_time": {
+        "name": "Temps de décharge"
+      },
+      "battery_device_power": {
+        "name": "Puissance"
+      },
+      "battery_device_state": {
+        "name": "Etat",
+        "state": {
+          "standby": "En veille",
+          "charging": "En charge",
+          "discharging": "En décharge"
+        }
+      },
+      "power_consumption": {
+        "name": "Besoin Energétique"
+      },
+      "solar_surplus": {
+        "name": "Surplus Solaire"
+      },
+      "direct_solar": {
+        "name": "Solaire Direct"
+      },
+      "off_grid_power": {
+        "name": "Puissance Prise Secours"
+      },
       "cluster_mode": {
         "name": "Mode Cluster",
         "state": {
@@ -116,6 +157,9 @@
           "0": "Hors ligne",
           "1": "En ligne"
         }
+      },
+      "temperature": {
+        "name": "Température"
       },
       "production_day": {
         "name": "Production Jour"

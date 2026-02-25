@@ -92,6 +92,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         device_records = device_page_data.get("data", {}).get("records", [])
                         stations_devices[station_id]["wifi_data"] = {}
                         stations_devices[station_id]["battery_links"] = {}
+                        stations_devices[station_id]["temp_data"] = {}
                         
                         for device_record in device_records:
                             device_sn = device_record.get("sn") or device_record.get("serialNumber")
@@ -126,6 +127,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                                         _LOGGER.warning("Failed to fetch battery links for device SN %s: %s", device_sn, battery_exc)
                                         if device_id:
                                             stations_devices[station_id]["battery_links"][device_id] = {}
+                                
+                                # Check if this is a vm device and fetch temperature data
+                                if device_type_code == "vm":
+                                    _LOGGER.info("Detected vm device %s (ID: %s, SN: %s), fetching temperature data", device_name, device_id, device_sn)
+                                    try:
+                                        current_date = now.strftime("%Y-%m-%d")
+                                        temp_data = await client.async_get_device_temp(serial_number=device_sn, date=current_date)
+                                        if device_id:
+                                            stations_devices[station_id]["temp_data"][device_id] = temp_data
+                                        _LOGGER.info("Temperature data for device ID %s (SN %s): %s", device_id, device_sn, temp_data)
+                                    except Exception as temp_exc:
+                                        _LOGGER.warning("Failed to fetch temperature data for device SN %s: %s", device_sn, temp_exc)
+                                        if device_id:
+                                            stations_devices[station_id]["temp_data"][device_id] = {}
                     except Exception as device_exc:
                         _LOGGER.debug("Failed to fetch device page data for station %s: %s", station_id, device_exc)
                         stations_devices[station_id] = {}

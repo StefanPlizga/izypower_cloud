@@ -1,7 +1,7 @@
 {
   "domain": "izypower_cloud",
   "name": "Izypower Cloud",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "documentation": "https://github.com/StefanPlizga/izypower_cloud/blob/main/README.md",
   "issue_tracker": "https://github.com/StefanPlizga/izypower_cloud/issues",
   "requirements": [],

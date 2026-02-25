@@ -2,6 +2,8 @@
 
 This custom integration automatically discovers all Izypower Cloud power stations and provides comprehensive monitoring of your solar installation.
 
+**You need an Izypower account to use this integration. Only devices from the Izypower range by Materfrance are supported by this integration.**
+
 > **Important Note**: This is a community integration and is not developped by Materfrance.
 
 ## Acknowledgments
@@ -103,6 +105,7 @@ Thanks to Khirale, MarcoCMG, Wellgo and Zyos67 for testing and feedback.
 - Individual PV string power (PV1, PV2, etc.) in Watts
 
 **Device-Specific Sensors** (depending on device type):
+- Temperature (°C) - for micro-inverters
 - Average State of Charge (%) - for devices with integrated battery
 - Cluster Mode - for devices in multi-inverter configuration (Master/Slave/Standalone)
 
@@ -113,6 +116,17 @@ For batteries with individual modules/Link, additional sub-devices are created:
 **Parent Battery Device**:
 - State of Charge (%)
 - Energy (kWh)
+- Charge from External Power (W)
+- Charge from PV (W)
+- Charging Time Remaining (min)
+- Discharge from Battery (W)
+- Discharge from PV (W)
+- Discharging Time Remaining (min)
+- Power Consumption (W)
+- Battery Device Power (W)
+- Solar Surplus Power (W)
+- Direct Solar Power (W)
+- Backup Outlet Power (W)
 
 **Battery Link Sub-Devices** (per individual battery module):
 - State of Charge (%)

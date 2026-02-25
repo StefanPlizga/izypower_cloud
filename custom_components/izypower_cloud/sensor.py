@@ -286,6 +286,55 @@ class DeviceWiFiDataSensor(DeviceBaseSensor):
         return wifi_data.get(self._field_name)
 
 
+class DeviceTemperatureSensor(DeviceBaseSensor):
+    """Sensor for device temperature (for vm devices)."""
+    
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = "°C"
+    
+    def __init__(self, coordinator, station_id: int, station_name: str, device_record: dict):
+        """Initialize the temperature sensor."""
+        super().__init__(coordinator, station_id, station_name, device_record)
+        self._attr_unique_id = f"{ENTITY_ID_PREFIX}_device_{self._device_id}_temperature"
+        self._attr_translation_key = "temperature"
+    
+    def _get_temp_data(self) -> dict:
+        """Get fresh temperature data from coordinator for this device."""
+        coordinator_data = self.coordinator.data or {}
+        stations_devices = coordinator_data.get("stations_devices", {})
+        device_page_data = stations_devices.get(self._station_id, {})
+        temp_data_dict = device_page_data.get("temp_data", {})
+        return temp_data_dict.get(self._device_id, {})
+    
+    @property
+    def native_value(self):
+        """Return the last temperature value from data[0].data[-1].val."""
+        # Check if device is online
+        device_record = self._get_device_record()
+        online_state = device_record.get("onlineState")
+        
+        if online_state == 0:
+            return None
+        
+        temp_data = self._get_temp_data()
+        data_array = temp_data.get("data", [])
+        
+        if not data_array or len(data_array) == 0:
+            return None
+        
+        # Get the first element in the data array
+        first_data = data_array[0]
+        inner_data = first_data.get("data", [])
+        
+        if not inner_data or len(inner_data) == 0:
+            return None
+        
+        # Get the last element in the inner data array
+        last_entry = inner_data[-1]
+        return last_entry.get("val")
+
+
 class DeviceClusterModeSensor(DeviceBaseSensor):
     """Sensor for device cluster mode (battery clustering configuration)."""
     
@@ -413,9 +462,8 @@ class BatteryLinkSOCSensor(BatteryLinksBaseSensor):
 class BatteryLinkEnergySensor(BatteryLinksBaseSensor):
     """Sensor for battery link energy in kWh."""
     
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+    _attr_state_class = SensorStateClass.MEASUREMENT
     
     def __init__(self, coordinator, station_id: int, station_name: str, parent_device_id: int, parent_device_name: str, link_sn: str):
         """Initialize the battery link energy sensor."""
@@ -449,9 +497,8 @@ class BatteryLinkEnergySensor(BatteryLinksBaseSensor):
 class BatteryDeviceEnergySensor(BatteryLinksBaseSensor):
     """Sensor for battery device total energy (socKwh) in kWh."""
     
-    _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+    _attr_state_class = SensorStateClass.MEASUREMENT
     
     def __init__(self, coordinator, station_id: int, station_name: str, device_id: int, device_name: str):
         """Initialize the battery device energy sensor."""
@@ -480,54 +527,44 @@ class BatteryDeviceEnergySensor(BatteryLinksBaseSensor):
         data = battery_links_data.get("data", {})
         
         attributes = {
-            "socKwh": data.get("socKwh"),
-            "soc": data.get("soc"),
-            "avgSocKwh": data.get("avgSocKwh"),
-            "avgSoc": data.get("avgSoc"),
-            "batteryPower": data.get("batteryPower"),
-            "consumptionPower": data.get("consumptionPower"),
-            "solarPower": data.get("solarPower"),
-            "pvPower": data.get("pvPower"),
-            "offGridPower": data.get("offGridPower"),
             "onlineState": data.get("onlineState"),
         }
-        
-        # Add charge data
-        charge_data = data.get("chargeData", {})
-        if charge_data:
-            attributes["chargePower1"] = charge_data.get("power1")
-            attributes["chargePower2"] = charge_data.get("power2")
-            attributes["chargeRemainingTime"] = charge_data.get("remainingTime")
-        
-        # Add discharge data
-        discharge_data = data.get("dischargeData", {})
-        if discharge_data:
-            attributes["dischargePower1"] = discharge_data.get("power1")
-            attributes["dischargePower2"] = discharge_data.get("power2")
-            attributes["dischargeRemainingTime"] = discharge_data.get("remainingTime")
-        
-        # Add PV list if available
-        pv_list = data.get("pvList", [])
-        if pv_list:
-            for idx, pv in enumerate(pv_list, 1):
-                attributes[f"pvPower{idx}"] = pv.get("power")
         
         return attributes
 
 
-class BatteryDeviceSOCSensor(BatteryLinksBaseSensor):
-    """Sensor for battery device state of charge (soc) percentage."""
+class BatteryLinksDataSensor(BatteryLinksBaseSensor):
+    """Generic sensor for battery links data with configurable data path."""
     
-    _attr_device_class = SensorDeviceClass.BATTERY
-    _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_native_unit_of_measurement = "%"
-    
-    def __init__(self, coordinator, station_id: int, station_name: str, device_id: int, device_name: str):
-        """Initialize the battery device SOC sensor."""
+    def __init__(
+        self,
+        coordinator,
+        station_id: int,
+        station_name: str,
+        device_id: int,
+        device_name: str,
+        data_path: tuple,
+        translation_key: str,
+        unique_id_suffix: str,
+        device_class=None,
+        state_class=None,
+        unit: str = None,
+        as_string: bool = False,
+    ):
+        """Initialize the generic battery links data sensor."""
         super().__init__(coordinator, station_id, station_name, device_id)
         self._device_name = device_name
-        self._attr_unique_id = f"{ENTITY_ID_PREFIX}_device_{device_id}_battery_soc_links"
-        self._attr_translation_key = "battery_device_soc"
+        self._data_path = data_path
+        self._as_string = as_string
+        self._attr_unique_id = f"{ENTITY_ID_PREFIX}_device_{device_id}_{unique_id_suffix}"
+        self._attr_translation_key = translation_key
+        
+        if device_class:
+            self._attr_device_class = device_class
+        if state_class:
+            self._attr_state_class = state_class
+        if unit:
+            self._attr_native_unit_of_measurement = unit
     
     @property
     def device_info(self):
@@ -538,9 +575,292 @@ class BatteryDeviceSOCSensor(BatteryLinksBaseSensor):
     
     @property
     def native_value(self):
-        """Return the battery device state of charge (soc) percentage."""
+        """Return the value from battery links data following the data path."""
         battery_links_data = self._get_battery_links_data()
-        return battery_links_data.get("data", {}).get("soc")
+        
+        # Navigate through the data path
+        value = battery_links_data
+        for key in self._data_path:
+            if isinstance(value, dict):
+                value = value.get(key, {})
+            else:
+                return None
+        
+        # Handle time fields - convert non-numeric values to 0
+        if self._as_string and value is not None:
+            if value == "{}":
+                return None
+            try:
+                # Try to convert to float
+                return float(value)
+            except (ValueError, TypeError):
+                # If conversion fails (e.g., value is "-"), return 0
+                return 0
+        
+        return value if value != {} else None
+
+
+class BatteryDeviceStateSensor(BatteryLinksBaseSensor):
+    """Sensor for battery device state based on power value."""
+    
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = ["standby", "charging", "discharging"]
+    
+    def __init__(self, coordinator, station_id: int, station_name: str, device_id: int, device_name: str):
+        """Initialize the battery device state sensor."""
+        super().__init__(coordinator, station_id, station_name, device_id)
+        self._device_name = device_name
+        self._attr_unique_id = f"{ENTITY_ID_PREFIX}_device_{device_id}_battery_device_state"
+        self._attr_translation_key = "battery_device_state"
+    
+    @property
+    def device_info(self):
+        """Return device information for this battery device."""
+        return {
+            "identifiers": {(DOMAIN, f"{ENTITY_ID_PREFIX}_device_{self._device_id}")},
+        }
+    
+    @property
+    def native_value(self):
+        """Return the battery device state based on batteryPower value."""
+        battery_links_data = self._get_battery_links_data()
+        battery_power = battery_links_data.get("data", {}).get("batteryPower")
+        
+        if battery_power is None:
+            return None
+        
+        # Determine state based on power value
+        if battery_power == 0:
+            return "standby"
+        elif battery_power > 0:
+            return "discharging"
+        else:  # battery_power < 0
+            return "charging"
+
+
+# Battery sensors configuration
+BATTERY_SENSORS_CONFIG = [
+    # (data_path, translation_key, unique_id_suffix, device_class, state_class, unit, as_string)
+    (("data", "soc"), "battery_device_soc", "battery_soc_links", SensorDeviceClass.BATTERY, SensorStateClass.MEASUREMENT, "%", False),
+    (("data", "chargeData", "power1"), "charge_from_external", "charge_from_external", SensorDeviceClass.POWER, SensorStateClass.MEASUREMENT, UnitOfPower.WATT, False),
+    (("data", "chargeData", "power2"), "charge_from_pv", "charge_from_pv", SensorDeviceClass.POWER, SensorStateClass.MEASUREMENT, UnitOfPower.WATT, False),
+    (("data", "chargeData", "remainingTime"), "charging_time", "charging_time", SensorDeviceClass.DURATION, SensorStateClass.MEASUREMENT, "min", True),
+    (("data", "dischargeData", "power1"), "discharge_from_battery", "discharge_from_battery", SensorDeviceClass.POWER, SensorStateClass.MEASUREMENT, UnitOfPower.WATT, False),
+    (("data", "dischargeData", "power2"), "discharge_from_pv", "discharge_from_pv", SensorDeviceClass.POWER, SensorStateClass.MEASUREMENT, UnitOfPower.WATT, False),
+    (("data", "dischargeData", "remainingTime"), "discharging_time", "discharging_time", SensorDeviceClass.DURATION, SensorStateClass.MEASUREMENT, "min", True),
+    (("data", "consumptionPower"), "power_consumption", "power_consumption", SensorDeviceClass.POWER, SensorStateClass.MEASUREMENT, UnitOfPower.WATT, False),
+    (("data", "batteryPower"), "battery_device_power", "battery_device_power", SensorDeviceClass.POWER, SensorStateClass.MEASUREMENT, UnitOfPower.WATT, False),
+    (("data", "solarPower"), "solar_surplus", "solar_surplus", SensorDeviceClass.POWER, SensorStateClass.MEASUREMENT, UnitOfPower.WATT, False),
+    (("data", "pvPower"), "direct_solar", "direct_solar", SensorDeviceClass.POWER, SensorStateClass.MEASUREMENT, UnitOfPower.WATT, False),
+    (("data", "offGridPower"), "off_grid_power", "off_grid_power", SensorDeviceClass.POWER, SensorStateClass.MEASUREMENT, UnitOfPower.WATT, False),
+]
+
+
+def _create_station_sensors(coordinator, station_id: int, station_name: str, station_info: dict, entities: list):
+    """Create all station-level sensors."""
+    extra_data = station_info.get("extraData", {})
+    if not extra_data:
+        return
+    
+    # Power and SOC sensors
+    entities.append(StationDirectFieldSensor(coordinator, station_id, station_name, "power", "production_power", SensorDeviceClass.POWER, "W", SensorStateClass.MEASUREMENT))
+    entities.append(StationDirectFieldSensor(coordinator, station_id, station_name, "grid_power", "grid_power", SensorDeviceClass.POWER, "W", SensorStateClass.MEASUREMENT))
+    entities.append(StationDirectFieldSensor(coordinator, station_id, station_name, "consumption", "consumption_power", SensorDeviceClass.POWER, "W", SensorStateClass.MEASUREMENT))
+    entities.append(StationDirectFieldSensor(coordinator, station_id, station_name, "battery_power", "battery_power", SensorDeviceClass.POWER, "W", SensorStateClass.MEASUREMENT))
+    entities.append(StationDirectFieldSensor(coordinator, station_id, station_name, "battery_pv_power", "battery_pv_power", SensorDeviceClass.POWER, "W", SensorStateClass.MEASUREMENT))
+    entities.append(StationDirectFieldSensor(coordinator, station_id, station_name, "battery_soc", "battery_soc", SensorDeviceClass.BATTERY, "%", SensorStateClass.MEASUREMENT, None))
+    
+    # Last update timestamp sensor
+    entities.append(StationLastUpdateSensor(coordinator, station_id, station_name))
+    
+    # Production energy sensors
+    entities.append(StationEnergySensor(coordinator, station_id, station_name, "production", "day", "production_day"))
+    entities.append(StationEnergySensor(coordinator, station_id, station_name, "production", "month", "production_month"))
+    entities.append(StationEnergySensor(coordinator, station_id, station_name, "production", "year", "production_year"))
+    entities.append(StationEnergySensor(coordinator, station_id, station_name, "production", "all", "production_total"))
+    
+    # Grid energy sensors
+    entities.append(StationEnergySensor(coordinator, station_id, station_name, "grid", "day2", "grid_day_import"))
+    entities.append(StationEnergySensor(coordinator, station_id, station_name, "grid", "day1", "grid_day_export"))
+    entities.append(StationEnergySensor(coordinator, station_id, station_name, "grid", "month2", "grid_month_import"))
+    entities.append(StationEnergySensor(coordinator, station_id, station_name, "grid", "month1", "grid_month_export"))
+    entities.append(StationEnergySensor(coordinator, station_id, station_name, "grid", "year2", "grid_year_import"))
+    entities.append(StationEnergySensor(coordinator, station_id, station_name, "grid", "year1", "grid_year_export"))
+    entities.append(StationEnergySensor(coordinator, station_id, station_name, "grid", "all2", "grid_total_import"))
+    entities.append(StationEnergySensor(coordinator, station_id, station_name, "grid", "all1", "grid_total_export"))
+    
+    # Consumption energy sensors
+    entities.append(StationEnergySensor(coordinator, station_id, station_name, "consumption", "day", "consumption_day"))
+    entities.append(StationEnergySensor(coordinator, station_id, station_name, "consumption", "month", "consumption_month"))
+    entities.append(StationEnergySensor(coordinator, station_id, station_name, "consumption", "year", "consumption_year"))
+    entities.append(StationEnergySensor(coordinator, station_id, station_name, "consumption", "all", "consumption_total"))
+    
+    # Consumption from PV sensors (calculated)
+    entities.append(StationCalculatedEnergySensor(coordinator, station_id, station_name, "day", "consumption_from_pv_day", 
+        {"consumption": "day", "battery": "day_out", "grid": "day2"}))
+    entities.append(StationCalculatedEnergySensor(coordinator, station_id, station_name, "month", "consumption_from_pv_month", 
+        {"consumption": "month", "battery": "month_out", "grid": "month2"}))
+    entities.append(StationCalculatedEnergySensor(coordinator, station_id, station_name, "year", "consumption_from_pv_year", 
+        {"consumption": "year", "battery": "year_out", "grid": "year2"}))
+    entities.append(StationCalculatedEnergySensor(coordinator, station_id, station_name, "total", "consumption_from_pv_total", 
+        {"consumption": "all", "battery": "total_out", "grid": "total2"}))
+    
+    # Battery energy sensors
+    entities.append(StationEnergySensor(coordinator, station_id, station_name, "battery", "day_in", "battery_day_charge"))
+    entities.append(StationEnergySensor(coordinator, station_id, station_name, "battery", "day_out", "battery_day_discharge"))
+    entities.append(StationEnergySensor(coordinator, station_id, station_name, "battery", "month_in", "battery_month_charge"))
+    entities.append(StationEnergySensor(coordinator, station_id, station_name, "battery", "month_out", "battery_month_discharge"))
+    entities.append(StationEnergySensor(coordinator, station_id, station_name, "battery", "year_in", "battery_year_charge"))
+    entities.append(StationEnergySensor(coordinator, station_id, station_name, "battery", "year_out", "battery_year_discharge"))
+    entities.append(StationEnergySensor(coordinator, station_id, station_name, "battery", "all_in", "battery_total_charge"))
+    entities.append(StationEnergySensor(coordinator, station_id, station_name, "battery", "all_out", "battery_total_discharge"))
+    
+    # Create rate sensors from report data for each time type
+    for time_type in ["all", "day", "month", "year"]:
+        entities.append(StationRateSensor(coordinator, station_id, station_name, time_type, "cover_rate", "cover_rate"))
+        entities.append(StationRateSensor(coordinator, station_id, station_name, time_type, "storage_in_rate", "storage_in_rate"))
+        entities.append(StationRateSensor(coordinator, station_id, station_name, time_type, "energy_self_rate", "energy_self_rate"))
+        entities.append(StationRateSensor(coordinator, station_id, station_name, time_type, "meter_energy_p_rate", "meter_energy_p_rate"))
+        entities.append(StationRateSensor(coordinator, station_id, station_name, time_type, "storage_out_rate", "storage_out_rate"))
+        entities.append(StationRateSensor(coordinator, station_id, station_name, time_type, "consumption_rate", "consumption_rate"))
+        entities.append(StationRateSensor(coordinator, station_id, station_name, time_type, "meter_energy_n_rate", "meter_energy_n_rate"))
+
+
+def _create_device_sensors(coordinator, station_id: int, station_name: str, device_record: dict, 
+                           device_type_mapping: dict, entities: list) -> dict:
+    """Create device-level sensors and return device_by_sn mapping."""
+    device_id = device_record.get("deviceId")
+    device_name = device_record.get("deviceName", f"Device {device_id}")
+    
+    if not device_id:
+        _LOGGER.warning("Skipping device record without deviceId: %s", device_record)
+        return {}
+    
+    _LOGGER.debug(
+        "Creating child device: %s (ID: %s, type: %s) for station %s with mapping: %s", 
+        device_name, 
+        device_id, 
+        device_record.get("deviceType"),
+        station_name,
+        device_type_mapping
+    )
+    
+    # Add online state sensor (also creates the device)
+    entities.append(DeviceOnlineStateSensor(coordinator, station_id, station_name, device_record, device_type_mapping))
+    
+    # Add cluster mode sensor if clusterMode != 0
+    cluster_mode_root = device_record.get("clusterMode", 0)
+    if cluster_mode_root != 0:
+        entities.append(DeviceClusterModeSensor(coordinator, station_id, station_name, device_record))
+    
+    # Add battery SOC sensor if key:6002 exists in dataDtos
+    data_dtos = device_record.get("dataDtos", [])
+    has_battery_soc = any(dto.get("key") == "6002" for dto in data_dtos)
+    if has_battery_soc:
+        entities.append(DeviceBatterySOCSensor(coordinator, station_id, station_name, device_record))
+    
+    # Add WiFi sensors for devices with serial numbers
+    device_by_sn = {}
+    serial_number = device_record.get("sn") or device_record.get("serialNumber")
+    if serial_number:
+        entities.append(DeviceWiFiDataSensor(coordinator, station_id, station_name, device_record, "rssi", "wifi_signal", SensorDeviceClass.SIGNAL_STRENGTH, "dBm", SensorStateClass.MEASUREMENT))
+        entities.append(DeviceWiFiDataSensor(coordinator, station_id, station_name, device_record, "wifi", "wifi_network"))
+        entities.append(DeviceWiFiDataSensor(coordinator, station_id, station_name, device_record, "ip", "ip_address"))
+        device_by_sn[serial_number] = device_record
+        _LOGGER.debug("Mapped device %s to SN: %s", device_name, serial_number)
+    
+    # Add temperature sensor for vm devices
+    device_type_code = device_record.get("deviceType")
+    if device_type_code == "vm":
+        entities.append(DeviceTemperatureSensor(coordinator, station_id, station_name, device_record))
+        _LOGGER.debug("Added temperature sensor for vm device %s (ID: %s)", device_name, device_id)
+    
+    return device_by_sn
+
+
+def _create_battery_link_sensors(coordinator, station_id: int, station_name: str, 
+                                 coordinator_data: dict, device_records: list, entities: list):
+    """Create battery link sensors."""
+    stations_devices = coordinator_data.get("stations_devices", {})
+    station_devices_data = stations_devices.get(station_id, {})
+    battery_links_dict = station_devices_data.get("battery_links", {})
+    _LOGGER.info("Battery links dict for station %s (ID: %s): found %s battery device(s) with links", 
+                station_name, station_id, len(battery_links_dict))
+    
+    for battery_device_id, battery_links_data in battery_links_dict.items():
+        # Find the parent device record
+        parent_device_record = next((dr for dr in device_records if dr.get("deviceId") == battery_device_id), None)
+        if not parent_device_record:
+            _LOGGER.warning("Parent device record not found for battery device ID: %s", battery_device_id)
+            continue
+        
+        parent_device_name = parent_device_record.get("deviceName", f"Device {battery_device_id}")
+        
+        # Add battery device total energy sensor (socKwh) to the parent battery device
+        _LOGGER.info("Creating battery device energy sensor for device %s (ID: %s)", parent_device_name, battery_device_id)
+        entities.append(BatteryDeviceEnergySensor(coordinator, station_id, station_name, battery_device_id, parent_device_name))
+        
+        # Add battery device state sensor based on battery power
+        _LOGGER.info("Creating battery device state sensor for device %s (ID: %s)", parent_device_name, battery_device_id)
+        entities.append(BatteryDeviceStateSensor(coordinator, station_id, station_name, battery_device_id, parent_device_name))
+        
+        # Create all battery sensors using the generic class
+        _LOGGER.info("Creating battery links sensors for device %s (ID: %s)", parent_device_name, battery_device_id)
+        for data_path, translation_key, unique_id_suffix, device_class, state_class, unit, as_string in BATTERY_SENSORS_CONFIG:
+            entities.append(BatteryLinksDataSensor(
+                coordinator, station_id, station_name, battery_device_id, parent_device_name,
+                data_path, translation_key, unique_id_suffix, device_class, state_class, unit, as_string
+            ))
+        
+        # Extract items from the battery links data
+        items = battery_links_data.get("data", {}).get("items", [])
+        _LOGGER.info("Found %s battery link(s) for device %s (ID: %s)", len(items), parent_device_name, battery_device_id)
+        
+        # Create sensors for each battery link
+        for item in items:
+            link_sn = item.get("sn")
+            if link_sn:
+                _LOGGER.info("Creating battery link sensors for SN: %s (parent: %s)", link_sn, parent_device_name)
+                entities.append(BatteryLinkSOCSensor(coordinator, station_id, station_name, battery_device_id, parent_device_name, link_sn))
+                entities.append(BatteryLinkEnergySensor(coordinator, station_id, station_name, battery_device_id, parent_device_name, link_sn))
+            else:
+                _LOGGER.warning("Battery link item missing 'sn' field: %s", item)
+
+
+async def _create_pv_sensors(client, coordinator, station_id: int, station_name: str, 
+                             device_by_sn: dict, entities: list):
+    """Create PV sensors."""
+    try:
+        current_date = datetime.now().strftime("%Y-%m-%d")
+        component_data = await client.async_get_component(
+            component_id=station_id,
+            date=current_date
+        )
+        _LOGGER.debug("Component data for station %s (ID: %s): %s", station_name, station_id, component_data)
+        
+        # Parse pvData array
+        pv_data_list = component_data.get("pvData", [])
+        _LOGGER.debug("Found %s PV data entries for station %s", len(pv_data_list), station_name)
+        
+        for pv_data in pv_data_list:
+            pv_sn = pv_data.get("sn")
+            pv_name = pv_data.get("pv")
+            
+            if not pv_sn or not pv_name:
+                _LOGGER.debug("Skipping PV data without sn or pv name: %s", pv_data)
+                continue
+            
+            # Find matching device by serial number
+            device_record = device_by_sn.get(pv_sn)
+            if device_record:
+                device_name = device_record.get("deviceName", "Unknown")
+                _LOGGER.debug("Creating PV sensor %s for device %s (SN: %s)", pv_name, device_name, pv_sn)
+                entities.append(DevicePVSensor(coordinator, station_id, station_name, device_record, pv_data))
+            else:
+                _LOGGER.debug("No device found for PV data with SN: %s, pv: %s", pv_sn, pv_name)
+    
+    except Exception as exc:
+        _LOGGER.warning("Failed to fetch component data for station %s (ID: %s): %s", station_name, station_id, exc)
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -586,71 +906,8 @@ async def async_setup_entry(hass, entry, async_add_entities):
                 _LOGGER.debug("Mapped device type '%s' to '%s'", type_code, type_name)
         _LOGGER.debug("Complete device type mapping for station %s: %s", station_name, device_type_mapping)
         
-        # Create station sensors from extraData
-        extra_data = station_info.get("extraData", {})
-        if extra_data:
-            # Power and SOC sensors
-            entities.append(StationDirectFieldSensor(coordinator, station_id, station_name, "power", "production_power", SensorDeviceClass.POWER, "W", SensorStateClass.MEASUREMENT))
-            entities.append(StationDirectFieldSensor(coordinator, station_id, station_name, "grid_power", "grid_power", SensorDeviceClass.POWER, "W", SensorStateClass.MEASUREMENT))
-            entities.append(StationDirectFieldSensor(coordinator, station_id, station_name, "consumption", "consumption_power", SensorDeviceClass.POWER, "W", SensorStateClass.MEASUREMENT))
-            entities.append(StationDirectFieldSensor(coordinator, station_id, station_name, "battery_power", "battery_power", SensorDeviceClass.POWER, "W", SensorStateClass.MEASUREMENT))
-            entities.append(StationDirectFieldSensor(coordinator, station_id, station_name, "battery_pv_power", "battery_pv_power", SensorDeviceClass.POWER, "W", SensorStateClass.MEASUREMENT))
-            entities.append(StationDirectFieldSensor(coordinator, station_id, station_name, "battery_soc", "battery_soc", SensorDeviceClass.BATTERY, "%", SensorStateClass.MEASUREMENT, None))
-            
-            # Last update timestamp sensor
-            entities.append(StationLastUpdateSensor(coordinator, station_id, station_name))
-            
-            # Production energy sensors
-            entities.append(StationEnergySensor(coordinator, station_id, station_name, "production", "day", "production_day"))
-            entities.append(StationEnergySensor(coordinator, station_id, station_name, "production", "month", "production_month"))
-            entities.append(StationEnergySensor(coordinator, station_id, station_name, "production", "year", "production_year"))
-            entities.append(StationEnergySensor(coordinator, station_id, station_name, "production", "all", "production_total"))
-            
-            # Grid energy sensors
-            entities.append(StationEnergySensor(coordinator, station_id, station_name, "grid", "day2", "grid_day_import"))
-            entities.append(StationEnergySensor(coordinator, station_id, station_name, "grid", "day1", "grid_day_export"))
-            entities.append(StationEnergySensor(coordinator, station_id, station_name, "grid", "month2", "grid_month_import"))
-            entities.append(StationEnergySensor(coordinator, station_id, station_name, "grid", "month1", "grid_month_export"))
-            entities.append(StationEnergySensor(coordinator, station_id, station_name, "grid", "year2", "grid_year_import"))
-            entities.append(StationEnergySensor(coordinator, station_id, station_name, "grid", "year1", "grid_year_export"))
-            entities.append(StationEnergySensor(coordinator, station_id, station_name, "grid", "all2", "grid_total_import"))
-            entities.append(StationEnergySensor(coordinator, station_id, station_name, "grid", "all1", "grid_total_export"))
-            
-            # Consumption energy sensors
-            entities.append(StationEnergySensor(coordinator, station_id, station_name, "consumption", "day", "consumption_day"))
-            entities.append(StationEnergySensor(coordinator, station_id, station_name, "consumption", "month", "consumption_month"))
-            entities.append(StationEnergySensor(coordinator, station_id, station_name, "consumption", "year", "consumption_year"))
-            entities.append(StationEnergySensor(coordinator, station_id, station_name, "consumption", "all", "consumption_total"))
-            
-            # Consumption from PV sensors (calculated)
-            entities.append(StationCalculatedEnergySensor(coordinator, station_id, station_name, "day", "consumption_from_pv_day", 
-                {"consumption": "day", "battery": "day_out", "grid": "day2"}))
-            entities.append(StationCalculatedEnergySensor(coordinator, station_id, station_name, "month", "consumption_from_pv_month", 
-                {"consumption": "month", "battery": "month_out", "grid": "month2"}))
-            entities.append(StationCalculatedEnergySensor(coordinator, station_id, station_name, "year", "consumption_from_pv_year", 
-                {"consumption": "year", "battery": "year_out", "grid": "year2"}))
-            entities.append(StationCalculatedEnergySensor(coordinator, station_id, station_name, "total", "consumption_from_pv_total", 
-                {"consumption": "all", "battery": "total_out", "grid": "total2"}))
-            
-            # Battery energy sensors
-            entities.append(StationEnergySensor(coordinator, station_id, station_name, "battery", "day_in", "battery_day_charge"))
-            entities.append(StationEnergySensor(coordinator, station_id, station_name, "battery", "day_out", "battery_day_discharge"))
-            entities.append(StationEnergySensor(coordinator, station_id, station_name, "battery", "month_in", "battery_month_charge"))
-            entities.append(StationEnergySensor(coordinator, station_id, station_name, "battery", "month_out", "battery_month_discharge"))
-            entities.append(StationEnergySensor(coordinator, station_id, station_name, "battery", "year_in", "battery_year_charge"))
-            entities.append(StationEnergySensor(coordinator, station_id, station_name, "battery", "year_out", "battery_year_discharge"))
-            entities.append(StationEnergySensor(coordinator, station_id, station_name, "battery", "all_in", "battery_total_charge"))
-            entities.append(StationEnergySensor(coordinator, station_id, station_name, "battery", "all_out", "battery_total_discharge"))
-        
-        # Create rate sensors from report data for each time type
-        for time_type in ["all", "day", "month", "year"]:
-            entities.append(StationRateSensor(coordinator, station_id, station_name, time_type, "cover_rate", "cover_rate"))
-            entities.append(StationRateSensor(coordinator, station_id, station_name, time_type, "storage_in_rate", "storage_in_rate"))
-            entities.append(StationRateSensor(coordinator, station_id, station_name, time_type, "energy_self_rate", "energy_self_rate"))
-            entities.append(StationRateSensor(coordinator, station_id, station_name, time_type, "meter_energy_p_rate", "meter_energy_p_rate"))
-            entities.append(StationRateSensor(coordinator, station_id, station_name, time_type, "storage_out_rate", "storage_out_rate"))
-            entities.append(StationRateSensor(coordinator, station_id, station_name, time_type, "consumption_rate", "consumption_rate"))
-            entities.append(StationRateSensor(coordinator, station_id, station_name, time_type, "meter_energy_n_rate", "meter_energy_n_rate"))
+        # Create station sensors
+        _create_station_sensors(coordinator, station_id, station_name, station_info, entities)
         
         # Query DEVICE_PAGE_URL for this station to get child devices
         try:
@@ -670,114 +927,14 @@ async def async_setup_entry(hass, entry, async_add_entities):
             device_by_sn = {}
             
             for device_record in device_records:
-                device_id = device_record.get("deviceId")
-                device_name = device_record.get("deviceName", f"Device {device_id}")
-                
-                if not device_id:
-                    _LOGGER.warning("Skipping device record without deviceId: %s", device_record)
-                    continue
-                
-                _LOGGER.debug(
-                    "Creating child device: %s (ID: %s, type: %s) for station %s with mapping: %s", 
-                    device_name, 
-                    device_id, 
-                    device_record.get("deviceType"),
-                    station_name,
-                    device_type_mapping
-                )
-                
-                # Add online state sensor (also creates the device)
-                entities.append(DeviceOnlineStateSensor(coordinator, station_id, station_name, device_record, device_type_mapping))
-                
-                # Add cluster mode sensor if clusterMode != 0
-                cluster_mode_root = device_record.get("clusterMode", 0)
-                if cluster_mode_root != 0:
-                    entities.append(DeviceClusterModeSensor(coordinator, station_id, station_name, device_record))
-                
-                # Add battery SOC sensor if key:6002 exists in dataDtos
-                data_dtos = device_record.get("dataDtos", [])
-                has_battery_soc = any(dto.get("key") == "6002" for dto in data_dtos)
-                if has_battery_soc:
-                    entities.append(DeviceBatterySOCSensor(coordinator, station_id, station_name, device_record))
-                
-                # Add WiFi sensors for devices with serial numbers
-                serial_number = device_record.get("sn") or device_record.get("serialNumber")
-                if serial_number:
-                    entities.append(DeviceWiFiDataSensor(coordinator, station_id, station_name, device_record, "rssi", "wifi_signal", SensorDeviceClass.SIGNAL_STRENGTH, "dBm", SensorStateClass.MEASUREMENT))
-                    entities.append(DeviceWiFiDataSensor(coordinator, station_id, station_name, device_record, "wifi", "wifi_network"))
-                    entities.append(DeviceWiFiDataSensor(coordinator, station_id, station_name, device_record, "ip", "ip_address"))
-                    device_by_sn[serial_number] = device_record
-                    _LOGGER.debug("Mapped device %s to SN: %s", device_name, serial_number)
+                sn_mapping = _create_device_sensors(coordinator, station_id, station_name, device_record, device_type_mapping, entities)
+                device_by_sn.update(sn_mapping)
             
             # Create battery link sub-devices from coordinator data
-            stations_devices = coordinator_data.get("stations_devices", {})
-            station_devices_data = stations_devices.get(station_id, {})
-            battery_links_dict = station_devices_data.get("battery_links", {})
-            _LOGGER.info("Battery links dict for station %s (ID: %s): found %s battery device(s) with links", 
-                        station_name, station_id, len(battery_links_dict))
-            
-            for battery_device_id, battery_links_data in battery_links_dict.items():
-                # Find the parent device record
-                parent_device_record = next((dr for dr in device_records if dr.get("deviceId") == battery_device_id), None)
-                if parent_device_record:
-                    parent_device_name = parent_device_record.get("deviceName", f"Device {battery_device_id}")
-                    
-                    # Add battery device total energy sensor (socKwh) to the parent battery device
-                    _LOGGER.info("Creating battery device energy sensor for device %s (ID: %s)", parent_device_name, battery_device_id)
-                    entities.append(BatteryDeviceEnergySensor(coordinator, station_id, station_name, battery_device_id, parent_device_name))
-                    
-                    # Add battery device SOC sensor (soc) to the parent battery device
-                    _LOGGER.info("Creating battery device SOC sensor for device %s (ID: %s)", parent_device_name, battery_device_id)
-                    entities.append(BatteryDeviceSOCSensor(coordinator, station_id, station_name, battery_device_id, parent_device_name))
-                    
-                    # Extract items from the battery links data
-                    items = battery_links_data.get("data", {}).get("items", [])
-                    _LOGGER.info("Found %s battery link(s) for device %s (ID: %s)", len(items), parent_device_name, battery_device_id)
-                    
-                    # Create sensors for each battery link
-                    for item in items:
-                        link_sn = item.get("sn")
-                        if link_sn:
-                            _LOGGER.info("Creating battery link sensors for SN: %s (parent: %s)", link_sn, parent_device_name)
-                            entities.append(BatteryLinkSOCSensor(coordinator, station_id, station_name, battery_device_id, parent_device_name, link_sn))
-                            entities.append(BatteryLinkEnergySensor(coordinator, station_id, station_name, battery_device_id, parent_device_name, link_sn))
-                        else:
-                            _LOGGER.warning("Battery link item missing 'sn' field: %s", item)
-                else:
-                    _LOGGER.warning("Parent device record not found for battery device ID: %s", battery_device_id)
+            _create_battery_link_sensors(coordinator, station_id, station_name, coordinator_data, device_records, entities)
             
             # Query component data for PV sensors at station level
-            try:
-                current_date = datetime.now().strftime("%Y-%m-%d")
-                component_data = await client.async_get_component(
-                    component_id=station_id,
-                    date=current_date
-                )
-                _LOGGER.debug("Component data for station %s (ID: %s): %s", station_name, station_id, component_data)
-                
-                # Parse pvData array
-                pv_data_list = component_data.get("pvData", [])
-                _LOGGER.debug("Found %s PV data entries for station %s", len(pv_data_list), station_name)
-                
-                for pv_data in pv_data_list:
-                    pv_sn = pv_data.get("sn")
-                    pv_name = pv_data.get("pv")
-                    
-                    if not pv_sn or not pv_name:
-                        _LOGGER.debug("Skipping PV data without sn or pv name: %s", pv_data)
-                        continue
-                    
-                    # Find matching device by serial number
-                    device_record = device_by_sn.get(pv_sn)
-                    if device_record:
-                        device_name = device_record.get("deviceName", "Unknown")
-                        _LOGGER.debug("Creating PV sensor %s for device %s (SN: %s)", pv_name, device_name, pv_sn)
-                        entities.append(DevicePVSensor(coordinator, station_id, station_name, device_record, pv_data))
-                    else:
-                        _LOGGER.debug("No device found for PV data with SN: %s, pv: %s", pv_sn, pv_name)
-            
-            except Exception as exc:
-                _LOGGER.warning("Failed to fetch component data for station %s (ID: %s): %s", station_name, station_id, exc)
+            await _create_pv_sensors(client, coordinator, station_id, station_name, device_by_sn, entities)
                 
         except Exception as exc:
             _LOGGER.warning("Failed to fetch device page for station %s (ID: %s): %s", station_name, station_id, exc)
