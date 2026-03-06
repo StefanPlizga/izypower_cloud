@@ -438,7 +438,7 @@ class BatteryLinkSOCSensor(BatteryLinksBaseSensor):
         """Return device information for this battery link."""
         return {
             "identifiers": {(DOMAIN, f"{ENTITY_ID_PREFIX}_battery_link_{self._link_sn}")},
-            "name": f"{DISPLAY_NAME_PREFIX} {self._station_name} - {self._parent_device_name} Link {self._link_sn}",
+            "name": f"{DISPLAY_NAME_PREFIX} {self._station_name} ({self._station_id}) - {self._parent_device_name} Link {self._link_sn}",
             "manufacturer": DISPLAY_NAME_PREFIX,
             "model": "Battery Link",
             "serial_number": self._link_sn,
@@ -976,7 +976,7 @@ class StationDeviceSensor(CoordinatorEntity, SensorEntity):
                
         return {
             "identifiers": {(DOMAIN, f"{ENTITY_ID_PREFIX}_station_{self._station_id}")},
-            "name": f"{DISPLAY_NAME_PREFIX} {self._station_name}",
+            "name": f"{DISPLAY_NAME_PREFIX} {self._station_name} ({self._station_id})",
             "manufacturer": DISPLAY_NAME_PREFIX,
             "model": self._model_translation,
         }
@@ -1019,7 +1019,7 @@ class DeviceOnlineStateSensor(DeviceBaseSensor):
         
         return {
             "identifiers": {(DOMAIN, f"{ENTITY_ID_PREFIX}_device_{self._device_id}")},
-            "name": f"{DISPLAY_NAME_PREFIX} {self._station_name} - {self._device_name}",
+            "name": f"{DISPLAY_NAME_PREFIX} {self._station_name} ({self._station_id}) - {self._device_name}",
             "manufacturer": DISPLAY_NAME_PREFIX,
             "model": device_type_name,
             "sw_version": self._device_sw_version,
@@ -1049,7 +1049,7 @@ class DevicePVSensor(DeviceBaseSensor):
         self._device_sn = device_record.get("sn") or device_record.get("serialNumber")
         self._pv_name = pv_data.get("pv", "PV").upper()
         self._attr_unique_id = f"{ENTITY_ID_PREFIX}_device_{self._device_id}_pv_{self._pv_name}"
-        self._attr_name = f"{DISPLAY_NAME_PREFIX} {self._station_name} - {self._device_name} {self._pv_name}"
+        self._attr_name = f"{DISPLAY_NAME_PREFIX} {self._station_name} ({self._station_id}) - {self._device_name} {self._pv_name}"
     
     def _get_pv_data(self) -> dict:
         """Get fresh PV data from coordinator for this sensor's device and PV name."""
