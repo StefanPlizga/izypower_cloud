@@ -73,6 +73,7 @@ Merci à Khirale, MarcoCMG, Wellgo et Zyos67 pour leurs tests et retours.
 **Capteurs de Batterie de la Centrale** :
 - État de Charge Batterie (%)
 - Dernière Mise à Jour (horodatage)
+- Mise à jour Centrale (Disponible/Aucune) - Indique si au moins un appareil de la centrale a une mise à jour disponible
 
 **Capteurs d'Énergie** (kWh) :
 - Production : Jour, Mois, Année, Total
@@ -102,6 +103,7 @@ Merci à Khirale, MarcoCMG, Wellgo et Zyos67 pour leurs tests et retours.
 - Force du Signal Wi-Fi (RSSI en dBm)
 - Nom du Réseau Wi-Fi
 - Adresse IP
+- Mise à jour (Disponible/Aucune) - Indique si une mise à jour firmware est disponible pour cet appareil
 
 **Production PV** :
 - Puissance individuelle par chaîne PV (PV1, PV2, etc.) en Watts

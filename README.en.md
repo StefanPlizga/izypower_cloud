@@ -71,6 +71,7 @@ Thanks to Khirale, MarcoCMG, Wellgo and Zyos67 for testing and feedback.
 **Station Battery Sensors**:
 - Battery State of Charge (%)
 - Last Update (timestamp)
+- Station Upgrade (Available/None) - Indicates if at least one device in the station has an available update
 
 **Energy Sensors** (kWh):
 - Production: Day, Month, Year, Total
@@ -100,6 +101,7 @@ Thanks to Khirale, MarcoCMG, Wellgo and Zyos67 for testing and feedback.
 - WiFi Signal Strength (RSSI in dBm)
 - WiFi Network Name
 - IP Address
+- Upgrade (Available/None) - Indicates if a firmware update is available for this device
 
 **PV Production**:
 - Individual PV string power (PV1, PV2, etc.) in Watts
