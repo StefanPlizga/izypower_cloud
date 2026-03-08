@@ -12,6 +12,7 @@ REPORT_URL_TEMPLATE = "http://application.izypowercloud.fr/photo_voltaic/api/rep
 DEVICE_WIFI_URL_TEMPLATE = "http://application.izypowercloud.fr/photo_voltaic/api/v3/device/wifi/{serial_number}"
 BATTERY_LINKS_URL_TEMPLATE = "http://application.izypowercloud.fr/photo_voltaic/izy/v2/battery/{serial_number}"
 DEVICE_TEMP_URL_TEMPLATE = "http://application.izypowercloud.fr/photo_voltaic/api/report/device/data/{serial_number}?searchTime={date}&timeType=day&dataFlag=temp"
+DEVICE_UPGRADE_URL_TEMPLATE = "http://application.izypowercloud.fr/photo_voltaic/api/v3/device/upgrade/{station_id}"
 
 TOKEN_HEADER = "x-tts-access-token"
 APP_PLATFORM_HEADER = "izy"

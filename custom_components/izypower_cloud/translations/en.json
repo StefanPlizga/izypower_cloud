@@ -160,6 +160,20 @@
       "temperature": {
         "name": "Temperature"
       },
+      "upgrade": {
+        "name": "Upgrade",
+        "state": {
+          "available": "Available",
+          "none": "None"
+        }
+      },
+      "station_upgrade": {
+        "name": "Station",
+        "state": {
+          "available": "Available",
+          "none": "None"
+        }
+      },
       "production_day": {
         "name": "Production Day"
       },

@@ -141,6 +141,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                                         _LOGGER.warning("Failed to fetch temperature data for device SN %s: %s", device_sn, temp_exc)
                                         if device_id:
                                             stations_devices[station_id]["temp_data"][device_id] = {}
+                        
+                        # Fetch device upgrade information for the station
+                        try:
+                            upgrade_data = await client.async_get_device_upgrade(station_id=station_id)
+                            stations_devices[station_id]["upgrade_data"] = upgrade_data
+                            _LOGGER.debug("Device upgrade data for station %s: %s", station_id, upgrade_data)
+                        except Exception as upgrade_exc:
+                            _LOGGER.debug("Failed to fetch device upgrade data for station %s: %s", station_id, upgrade_exc)
+                            stations_devices[station_id]["upgrade_data"] = {}
                     except Exception as device_exc:
                         _LOGGER.debug("Failed to fetch device page data for station %s: %s", station_id, device_exc)
                         stations_devices[station_id] = {}

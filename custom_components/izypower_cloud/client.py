@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from .const import LOGIN_URL, STATIONS_URL, DEVICE_PAGE_URL_TEMPLATE, COMPONENT_URL_TEMPLATE, STATION_INFO_URL_TEMPLATE, REPORT_URL_TEMPLATE, DEVICE_WIFI_URL_TEMPLATE, BATTERY_LINKS_URL_TEMPLATE, DEVICE_TEMP_URL_TEMPLATE, TOKEN_HEADER, APP_PLATFORM_HEADER
+from .const import LOGIN_URL, STATIONS_URL, DEVICE_PAGE_URL_TEMPLATE, COMPONENT_URL_TEMPLATE, STATION_INFO_URL_TEMPLATE, REPORT_URL_TEMPLATE, DEVICE_WIFI_URL_TEMPLATE, BATTERY_LINKS_URL_TEMPLATE, DEVICE_TEMP_URL_TEMPLATE, DEVICE_UPGRADE_URL_TEMPLATE, TOKEN_HEADER, APP_PLATFORM_HEADER
 import logging
 
 _LOGGER = logging.getLogger(__name__)
@@ -482,3 +482,51 @@ class IzyClient:
                 await asyncio.sleep(wait)
 
         raise Exception("Failed to fetch device temp after retries")
+
+    async def async_get_device_upgrade(self, station_id: int) -> Dict[str, Any]:
+        """Fetch device upgrade information for a station."""
+        max_attempts = 3
+        backoff_base = 1.0
+
+        for attempt in range(1, max_attempts + 1):
+            try:
+                if not self._token_is_valid():
+                    await self.async_login()
+
+                session = async_get_clientsession(self.hass)
+                url = DEVICE_UPGRADE_URL_TEMPLATE.format(station_id=station_id)
+                headers = {TOKEN_HEADER: self._token, "Accept-Language": self._get_language_header(), "app-platform": APP_PLATFORM_HEADER}
+                async with session.get(url, headers=headers, timeout=20) as resp:
+                    text = await resp.text()
+                    _LOGGER.debug("Device upgrade response for station %s (status %s): %s", station_id, resp.status, text)
+
+                    if resp.status == 401:
+                        _LOGGER.warning("Unauthorized (401) when fetching device upgrade; will re-login (attempt %s/%s)", attempt, max_attempts)
+                        await self.async_login()
+                        raise Exception("Unauthorized")
+
+                    if 500 <= resp.status < 600:
+                        _LOGGER.warning("Server error %s when fetching device upgrade (attempt %s/%s)", resp.status, attempt, max_attempts)
+                        raise Exception(f"HTTP {resp.status}")
+
+                    if resp.status != 200:
+                        _LOGGER.error("Failed fetching device upgrade %s: status %s body %s", station_id, resp.status, text)
+                        raise Exception(f"HTTP {resp.status}")
+
+                    try:
+                        return json.loads(text)
+                    except Exception:
+                        _LOGGER.error("Invalid JSON from device upgrade: %s", text)
+                        raise
+
+            except asyncio.TimeoutError:
+                _LOGGER.warning("Request timed out fetching device upgrade %s (attempt %s/%s)", station_id, attempt, max_attempts)
+            except Exception as exc:
+                _LOGGER.debug("Error fetching device upgrade %s (attempt %s/%s): %s", station_id, attempt, max_attempts, exc)
+
+            if attempt < max_attempts:
+                jitter = random.random() * 0.5
+                wait = backoff_base * (2 ** (attempt - 1)) + jitter
+                await asyncio.sleep(wait)
+
+        raise Exception("Failed to fetch device upgrade after retries")

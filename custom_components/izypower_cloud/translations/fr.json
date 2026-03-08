@@ -161,6 +161,20 @@
       "temperature": {
         "name": "Température"
       },
+      "upgrade": {
+        "name": "Mise à jour",
+        "state": {
+          "available": "Disponible",
+          "none": "Aucune"
+        }
+      },
+      "station_upgrade": {
+        "name": "Mise à jour",
+        "state": {
+          "available": "Disponible",
+          "none": "Aucune"
+        }
+      },
       "production_day": {
         "name": "Production Jour"
       },

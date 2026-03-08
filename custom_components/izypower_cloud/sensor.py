@@ -191,6 +191,48 @@ class StationLastUpdateSensor(StationBaseSensor):
             return None
 
 
+class StationUpgradeSensor(StationBaseSensor):
+    """Sensor for station-level upgrade availability (aggregates all devices)."""
+    
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = ["available", "none"]
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    
+    def __init__(self, coordinator, station_id: int, station_name: str):
+        """Initialize the station upgrade sensor."""
+        super().__init__(coordinator, station_id, station_name)
+        self._attr_unique_id = f"{ENTITY_ID_PREFIX}_station_{station_id}_upgrade"
+        self._attr_translation_key = "station_upgrade"
+    
+    @property
+    def native_value(self):
+        """Return 'available' if any device in the station has needUpgrade=true, otherwise 'none'."""
+        coordinator_data = self.coordinator.data or {}
+        stations_devices = coordinator_data.get("stations_devices", {})
+        device_page_data = stations_devices.get(self._station_id, {})
+        upgrade_data = device_page_data.get("upgrade_data", {})
+        
+        # Get all device serial numbers in this station
+        device_records = device_page_data.get("data", {}).get("records", [])
+        station_sns = set()
+        for device_record in device_records:
+            sn = device_record.get("sn") or device_record.get("serialNumber")
+            if sn:
+                station_sns.add(sn)
+        
+        # Check if any device in the station has an upgrade available
+        data_entries = upgrade_data.get("data", [])
+        for entry in data_entries:
+            entry_sn = entry.get("sn")
+            need_upgrade = entry.get("needUpgrade", False)
+            
+            # If this entry is for a device in our station and needs upgrade
+            if entry_sn in station_sns and need_upgrade:
+                return "available"
+        
+        return "none"
+
+
 class DeviceBaseSensor(CoordinatorEntity, SensorEntity):
     """Base class for device sensors."""
     
@@ -395,6 +437,46 @@ class DeviceBatterySOCSensor(DeviceBaseSensor):
                     return None
         
         return None
+
+
+class DeviceUpgradeSensor(DeviceBaseSensor):
+    """Sensor for device upgrade availability."""
+    
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = ["available", "none"]
+    
+    def __init__(self, coordinator, station_id: int, station_name: str, device_record: dict):
+        """Initialize the upgrade sensor."""
+        super().__init__(coordinator, station_id, station_name, device_record)
+        self._device_sn = device_record.get("sn") or device_record.get("serialNumber")
+        self._attr_unique_id = f"{ENTITY_ID_PREFIX}_device_{self._device_id}_upgrade"
+        self._attr_translation_key = "upgrade"
+    
+    def _get_upgrade_data(self) -> dict:
+        """Get fresh upgrade data from coordinator for this station."""
+        coordinator_data = self.coordinator.data or {}
+        stations_devices = coordinator_data.get("stations_devices", {})
+        device_page_data = stations_devices.get(self._station_id, {})
+        return device_page_data.get("upgrade_data", {})
+    
+    @property
+    def native_value(self):
+        """Return 'available' if any upgrade entry for this device has needUpgrade=true, otherwise 'none'."""
+        if not self._device_sn:
+            return "none"
+        
+        upgrade_data = self._get_upgrade_data()
+        data_entries = upgrade_data.get("data", [])
+        
+        # Check if any entry with this serial number has needUpgrade=true
+        for entry in data_entries:
+            entry_sn = entry.get("sn")
+            need_upgrade = entry.get("needUpgrade", False)
+            
+            if entry_sn == self._device_sn and need_upgrade:
+                return "available"
+        
+        return "none"
 
 
 class BatteryLinksBaseSensor(CoordinatorEntity, SensorEntity):
@@ -673,6 +755,9 @@ def _create_station_sensors(coordinator, station_id: int, station_name: str, sta
     # Last update timestamp sensor
     entities.append(StationLastUpdateSensor(coordinator, station_id, station_name))
     
+    # Station upgrade sensor (aggregates all devices)
+    entities.append(StationUpgradeSensor(coordinator, station_id, station_name))
+    
     # Production energy sensors
     entities.append(StationEnergySensor(coordinator, station_id, station_name, "production", "day", "production_day"))
     entities.append(StationEnergySensor(coordinator, station_id, station_name, "production", "month", "production_month"))
@@ -766,6 +851,11 @@ def _create_device_sensors(coordinator, station_id: int, station_name: str, devi
         entities.append(DeviceWiFiDataSensor(coordinator, station_id, station_name, device_record, "rssi", "wifi_signal", SensorDeviceClass.SIGNAL_STRENGTH, "dBm", SensorStateClass.MEASUREMENT))
         entities.append(DeviceWiFiDataSensor(coordinator, station_id, station_name, device_record, "wifi", "wifi_network"))
         entities.append(DeviceWiFiDataSensor(coordinator, station_id, station_name, device_record, "ip", "ip_address"))
+        
+        # Add upgrade sensor for devices with serial numbers
+        entities.append(DeviceUpgradeSensor(coordinator, station_id, station_name, device_record))
+        _LOGGER.debug("Added upgrade sensor for device %s (ID: %s, SN: %s)", device_name, device_id, serial_number)
+        
         device_by_sn[serial_number] = device_record
         _LOGGER.debug("Mapped device %s to SN: %s", device_name, serial_number)
     
