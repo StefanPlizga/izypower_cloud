@@ -134,6 +134,16 @@ For batteries with individual modules/Link, additional sub-devices are created:
 - State of Charge (%)
 - Energy (kWh)
 
+### Meter Device Controls
+
+For smart meter devices, the following controls are available:
+
+**Injection Blocking Switch and Injection Limit Number**:
+- Enable/disable grid injection control
+- When enabled, restricts power export to the grid according to the configured injection limit
+- Configure the maximum power injection to the grid (displayed as positive watts, 0-36000W)
+
+
 ### Technical Features
 
 - Cloud polling: Data retrieved via Izypower Cloud API
@@ -160,6 +170,7 @@ For batteries with individual modules/Link, additional sub-devices are created:
 - **Inverter/Equipment Sub-devices**: Each inverter/equipment under the station with device-specific sensors (online state, WiFi, PV strings, average state of charge, cluster mode)
 - **Battery Sub-devices**: For batteries with modules, a parent battery device with energy and state of charge sensors
 - **Battery Link Sub-devices**: For each individual battery module, a sub-device with its own state of charge and energy
+- **Meter Devices**: For smart meters, injection control switch and injection limit number entities for managing grid export
 - **Logical grouping**: All sensors properly categorized with appropriate device classes and state classes for Home Assistant Energy dashboard compatibility
 
 ## Data Refresh

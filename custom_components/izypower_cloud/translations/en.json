@@ -333,6 +333,16 @@
       "meter_energy_p_rate_year": {
         "name": "Grid Rate Year (Import)"
       }
+    },
+    "switch": {
+      "injection_control": {
+        "name": "Injection Blocking"
+      }
+    },
+    "number": {
+      "injection_limit": {
+        "name": "Injection Limit"
+      }
     }
   }
 }

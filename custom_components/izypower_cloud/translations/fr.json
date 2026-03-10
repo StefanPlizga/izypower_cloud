@@ -334,6 +334,16 @@
       "meter_energy_p_rate_year": {
         "name": "Taux Réseau Année (Import)"
       }
+    },
+    "switch": {
+      "injection_control": {
+        "name": "Blocage d'injection"
+      }
+    },
+    "number": {
+      "injection_limit": {
+        "name": "Limite d'injection"
+      }
     }
   },
   "device": {

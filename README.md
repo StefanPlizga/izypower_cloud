@@ -164,7 +164,17 @@ Pour les batteries avec modules/liens individuels, des sous-appareils supplémen
 - **Sous-appareils Onduleur/Équipement** : Chaque onduleur/équipement sous la centrale avec des capteurs spécifiques (état en ligne, Wi-Fi, chaînes PV, état de charge moyen, mode cluster)
 - **Sous-appareils Batterie** : Pour les batteries avec modules, un appareil batterie parent avec capteurs d'énergie et d'état de charge
 - **Sous-appareils Link de Batterie** : Pour chaque module Link de batterie, un sous-appareil avec son propre état de charge et énergie
+- **Appareils Compteur** : Pour les compteurs intelligents, des contrôles sont disponibles pour gérer le blocage d'injection et la limite d'injection au réseau
 - **Regroupement logique** : Tous les capteurs sont correctement catégorisés avec les classes d'appareil et d'état appropriées pour la compatibilité avec le tableau de bord Énergie de Home Assistant
+
+## Contrôles de Compteur Intelligent
+
+Pour les appareils compteur intelligent, les contrôles suivants sont disponibles :
+
+**Interrupteur Blocage d'Injection et Nombre pour Limite d'Injection**
+- Active/désactive le contrôle d'injection au réseau
+- Lorsqu'activé, limite l'export d'énergie au réseau selon la limite d'injection configurée
+- Configure la puissance maximale d'injection au réseau (affichée en watts positifs, 0-36000W)
 
 ## Rafraîchissement des Données
 
