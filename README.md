@@ -1,10 +1,11 @@
 # Intégration Izypower Cloud pour Home Assistant
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge)](https://github.com/hacs/integration)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
-[![Maintenance](https://img.shields.io/maintenance/yes/2026.svg?style=for-the-badge)](https://github.com/StefanPlizga/izypower_cloud)
 [![GitHub release](https://img.shields.io/github/release/StefanPlizga/izypower_cloud.svg?style=for-the-badge)](https://github.com/StefanPlizga/izypower_cloud/releases)
+[![GitHub pre-release](https://img.shields.io/github/v/release/StefanPlizga/izypower_cloud?include_prereleases&label=Beta&style=for-the-badge)](https://github.com/StefanPlizga/izypower_cloud/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![GitHub downloads](https://img.shields.io/github/downloads/StefanPlizga/izypower_cloud/total?style=for-the-badge)](https://github.com/StefanPlizga/izypower_cloud/releases)
+[![Maintenance](https://img.shields.io/maintenance/yes/2026.svg?style=for-the-badge)](https://github.com/StefanPlizga/izypower_cloud)
 
 [English version](README.en.md)
 
