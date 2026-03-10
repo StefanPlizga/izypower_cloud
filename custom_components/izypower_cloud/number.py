@@ -33,7 +33,7 @@ async def async_setup_entry(
     stations_data = coordinator_data.get("stations", {}).get("data", {}).get("records", [])
     stations_devices = coordinator_data.get("stations_devices", {})
     
-    # Create a number entity for each meter device
+    # Create number entities for each meter device and battery device
     for station_record in stations_data:
         station_id = station_record.get("stationsId")
         station_name = station_record.get("stationsName", "Unknown")
@@ -41,6 +41,7 @@ async def async_setup_entry(
         if station_id and station_id in stations_devices:
             device_page_data = stations_devices[station_id]
             device_records = device_page_data.get("data", {}).get("records", [])
+            battery_cmd_dict = stations_devices[station_id].get("battery_cmd", {})
             
             for device_record in device_records:
                 device_type = device_record.get("deviceType")
@@ -48,9 +49,26 @@ async def async_setup_entry(
                 device_sn = device_record.get("sn")
                 device_name = device_record.get("deviceName", "Unknown")
                 
+                # Meter injection limit
                 if device_type == "meter" and device_id and device_sn:
                     entities.append(
                         MeterInjectionLimitNumber(
+                            coordinator,
+                            client,
+                            station_id,
+                            station_name,
+                            device_id,
+                            device_sn,
+                            device_name,
+                        )
+                    )
+                
+                # Battery min_soc (discharge limit)
+                if device_type == "battery" and device_id and device_sn and device_id in battery_cmd_dict:
+                    _LOGGER.debug("Creating min_soc number for battery device: %s (ID: %s, SN: %s)", 
+                                 device_name, device_id, device_sn)
+                    entities.append(
+                        BatteryMinSOCNumber(
                             coordinator,
                             client,
                             station_id,
@@ -181,3 +199,101 @@ class MeterInjectionLimitNumber(CoordinatorEntity, NumberEntity):
             _LOGGER.info("Server temporarily unavailable when setting injection limit: %s", exc)
         except Exception as exc:
             _LOGGER.error("Failed to set injection limit for %s: %s", self._device_sn, exc)
+
+
+class BatteryMinSOCNumber(CoordinatorEntity, NumberEntity):
+    """Number entity to control battery minimum state of charge (discharge limit)."""
+    
+    has_entity_name = True
+    _attr_mode = NumberMode.BOX
+    _attr_native_min_value = 5
+    _attr_native_max_value = 100
+    _attr_native_step = 5
+    _attr_native_unit_of_measurement = "%"
+    
+    def __init__(
+        self,
+        coordinator,
+        client,
+        station_id: int,
+        station_name: str,
+        device_id: int,
+        device_sn: str,
+        device_name: str,
+    ):
+        """Initialize the number entity."""
+        super().__init__(coordinator)
+        self._client = client
+        self._station_id = station_id
+        self._station_name = station_name
+        self._device_id = device_id
+        self._device_sn = device_sn
+        self._device_name = device_name
+        
+        self._attr_unique_id = f"{device_id}_battery_min_soc"
+        self._attr_translation_key = "battery_min_soc"
+    
+    @property
+    def device_info(self):
+        """Return device information."""
+        return {
+            "identifiers": {(DOMAIN, f"{ENTITY_ID_PREFIX}_device_{self._device_id}")},
+        }
+    
+    @property
+    def native_value(self) -> float | None:
+        """Return the current minimum SOC value."""
+        coordinator_data = self.coordinator.data or {}
+        stations_devices = coordinator_data.get("stations_devices", {})
+        
+        if self._station_id in stations_devices:
+            battery_cmd = stations_devices[self._station_id].get("battery_cmd", {})
+            device_cmd = battery_cmd.get(self._device_id, {})
+            min_soc = device_cmd.get("data", {}).get("min_soc")
+            return min_soc if min_soc is not None else None
+        
+        return None
+    
+    @property
+    def available(self) -> bool:
+        """Return True if entity is available."""
+        if not self.coordinator.last_update_success:
+            return False
+        
+        coordinator_data = self.coordinator.data or {}
+        stations_devices = coordinator_data.get("stations_devices", {})
+        
+        if self._station_id in stations_devices:
+            battery_cmd = stations_devices[self._station_id].get("battery_cmd", {})
+            return self._device_id in battery_cmd and battery_cmd.get(self._device_id) is not None
+        
+        return False
+    
+    async def async_set_native_value(self, value: float) -> None:
+        """Set the minimum SOC (discharge limit)."""
+        try:
+            # Convert to integer for API
+            min_soc_value = int(value)
+            
+            await self._client.async_set_battery_min_soc(
+                serial_number=self._device_sn,
+                value=min_soc_value,
+            )
+            # Fetch only the updated battery cmd data instead of full coordinator refresh
+            try:
+                battery_cmd_data = await self._client.async_get_battery_cmd(serial_number=self._device_sn)
+                # Update coordinator data with new battery cmd info
+                if self.coordinator.data:
+                    stations_devices = self.coordinator.data.get("stations_devices", {})
+                    if self._station_id in stations_devices:
+                        if "battery_cmd" not in stations_devices[self._station_id]:
+                            stations_devices[self._station_id]["battery_cmd"] = {}
+                        stations_devices[self._station_id]["battery_cmd"][self._device_id] = battery_cmd_data
+                # Notify all coordinator entities of the update
+                self.coordinator.async_set_updated_data(self.coordinator.data)
+            except Exception as refresh_exc:
+                _LOGGER.debug("Failed to refresh battery cmd after min_soc change: %s", refresh_exc)
+        except ServerUnavailableError as exc:
+            _LOGGER.info("Server temporarily unavailable when setting battery min_soc: %s", exc)
+        except Exception as exc:
+            _LOGGER.error("Failed to set battery min_soc for %s: %s", self._device_sn, exc)

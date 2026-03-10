@@ -134,6 +134,19 @@ For batteries with individual modules/Link, additional sub-devices are created:
 - State of Charge (%)
 - Energy (kWh)
 
+### Battery Device Controls
+
+For all battery devices, the following controls are available:
+
+**LED Light Control Buttons**:
+- Turn On Lights: Activate the battery LED indicator lights
+- Turn Off Lights: Deactivate the battery LED indicator lights
+
+**Minimum Discharge Level Number**:
+- Configure the minimum state of charge (5-100%) below which the battery will not discharge
+- Protects battery health by preventing excessive discharge
+- Setting applies to the battery device and all its modules
+
 ### Meter Device Controls
 
 For smart meter devices, the following controls are available:
@@ -170,6 +183,7 @@ For smart meter devices, the following controls are available:
 - **Inverter/Equipment Sub-devices**: Each inverter/equipment under the station with device-specific sensors (online state, WiFi, PV strings, average state of charge, cluster mode)
 - **Battery Sub-devices**: For batteries with modules, a parent battery device with energy and state of charge sensors
 - **Battery Link Sub-devices**: For each individual battery module, a sub-device with its own state of charge and energy
+- **Battery Device Controls**: LED light control buttons and minimum discharge level setting available for all battery devices
 - **Meter Devices**: For smart meters, injection control switch and injection limit number entities for managing grid export
 - **Logical grouping**: All sensors properly categorized with appropriate device classes and state classes for Home Assistant Energy dashboard compatibility
 

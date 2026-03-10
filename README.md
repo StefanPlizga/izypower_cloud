@@ -115,7 +115,7 @@ Merci à Khirale, MarcoCMG, Wellgo et Zyos67 pour leurs tests et retours.
 
 ### Capteurs d'Appareil Batterie (Par Batterie avec Modules)
 
-Pour les batteries avec modules/liens individuels, des sous-appareils supplémentaires sont créés :
+Pour les batteries avec modules/Link individuels, des sous-appareils supplémentaires sont créés :
 
 **Appareil Batterie Parent** :
 - État de Charge (%)
@@ -135,6 +135,19 @@ Pour les batteries avec modules/liens individuels, des sous-appareils supplémen
 **Sous-Appareils de Lien de Batterie** (par module de batterie individuel) :
 - État de Charge (%)
 - Énergie (kWh)
+
+### Contrôles d'Appareil Batterie
+
+Pour tous les appareils de batterie, les contrôles suivants sont disponibles :
+
+**Boutons de Contrôle des Lumières LED**:
+- Allumer Lumières : Active les voyants LED indicateurs de la batterie
+- Éteindre Lumières : Désactive les voyants LED indicateurs de la batterie
+
+**Nombre pour Niveau Minimum de Décharge**:
+- Configure l'état de charge minimum (5-100%) en dessous duquel la batterie ne se déchargera pas
+- Protège la santé de la batterie en empêchant une décharge excessive
+- Le réglage s'applique à l'appareil de batterie et à tous ses modules
 
 ### Fonctionnalités Techniques
 
@@ -164,6 +177,7 @@ Pour les batteries avec modules/liens individuels, des sous-appareils supplémen
 - **Sous-appareils Onduleur/Équipement** : Chaque onduleur/équipement sous la centrale avec des capteurs spécifiques (état en ligne, Wi-Fi, chaînes PV, état de charge moyen, mode cluster)
 - **Sous-appareils Batterie** : Pour les batteries avec modules, un appareil batterie parent avec capteurs d'énergie et d'état de charge
 - **Sous-appareils Link de Batterie** : Pour chaque module Link de batterie, un sous-appareil avec son propre état de charge et énergie
+- **Contrôles d'Appareil Batterie** : Boutons de contrôle des lumières LED et réglage du niveau minimum de décharge disponibles pour tous les appareils de batterie
 - **Appareils Compteur** : Pour les compteurs intelligents, des contrôles sont disponibles pour gérer le blocage d'injection et la limite d'injection au réseau
 - **Regroupement logique** : Tous les capteurs sont correctement catégorisés avec les classes d'appareil et d'état appropriées pour la compatibilité avec le tableau de bord Énergie de Home Assistant
 

@@ -98,6 +98,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         device_records = device_page_data.get("data", {}).get("records", [])
                         stations_devices[station_id]["wifi_data"] = {}
                         stations_devices[station_id]["battery_links"] = {}
+                        stations_devices[station_id]["battery_cmd"] = {}
                         stations_devices[station_id]["temp_data"] = {}
                         stations_devices[station_id]["meter_base_info"] = {}
                         
@@ -138,6 +139,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                                         _LOGGER.warning("Failed to fetch battery links for device SN %s: %s", device_sn, battery_exc)
                                         if device_id:
                                             stations_devices[station_id]["battery_links"][device_id] = {}
+                                    
+                                    # Fetch battery cmd data (min_soc and other settings)
+                                    _LOGGER.info("Fetching battery cmd data for device %s (ID: %s, SN: %s)", device_name, device_id, device_sn)
+                                    try:
+                                        battery_cmd_data = await client.async_get_battery_cmd(serial_number=device_sn)
+                                        if device_id:
+                                            stations_devices[station_id]["battery_cmd"][device_id] = battery_cmd_data
+                                        _LOGGER.info("Battery cmd data for device ID %s (SN %s): %s", device_id, device_sn, battery_cmd_data)
+                                    except ServerUnavailableError as cmd_exc:
+                                        _LOGGER.debug("Server unavailable when fetching battery cmd for device SN %s: %s", device_sn, cmd_exc)
+                                        if device_id:
+                                            stations_devices[station_id]["battery_cmd"][device_id] = {}
+                                    except Exception as cmd_exc:
+                                        _LOGGER.warning("Failed to fetch battery cmd for device SN %s: %s", device_sn, cmd_exc)
+                                        if device_id:
+                                            stations_devices[station_id]["battery_cmd"][device_id] = {}
                                 
                                 # Check if this is a vm device and fetch temperature data
                                 if device_type_code == "vm":
@@ -215,7 +232,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "coordinator": coordinator,
     }
 
-    await hass.config_entries.async_forward_entry_setups(entry, ["sensor", "switch", "number"])
+    await hass.config_entries.async_forward_entry_setups(entry, ["sensor", "switch", "number", "button"])
 
     # Register options update listener
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
@@ -229,7 +246,7 @@ async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, ["sensor", "switch", "number"])
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, ["sensor", "switch", "number", "button"])
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id, None)
     return unload_ok

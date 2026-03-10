@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from .const import LOGIN_URL, STATIONS_URL, DEVICE_PAGE_URL_TEMPLATE, COMPONENT_URL_TEMPLATE, STATION_INFO_URL_TEMPLATE, REPORT_URL_TEMPLATE, DEVICE_WIFI_URL_TEMPLATE, BATTERY_LINKS_URL_TEMPLATE, DEVICE_TEMP_URL_TEMPLATE, DEVICE_UPGRADE_URL_TEMPLATE, METER_BASE_INFO_URL_TEMPLATE, METER_CONTROL_URL_TEMPLATE, TOKEN_HEADER, APP_PLATFORM_HEADER
+from .const import LOGIN_URL, STATIONS_URL, DEVICE_PAGE_URL_TEMPLATE, COMPONENT_URL_TEMPLATE, STATION_INFO_URL_TEMPLATE, REPORT_URL_TEMPLATE, DEVICE_WIFI_URL_TEMPLATE, BATTERY_LINKS_URL_TEMPLATE, DEVICE_TEMP_URL_TEMPLATE, DEVICE_UPGRADE_URL_TEMPLATE, METER_BASE_INFO_URL_TEMPLATE, METER_CONTROL_URL_TEMPLATE, BATTERY_LED_URL_TEMPLATE, BATTERY_CMD_URL_TEMPLATE, BATTERY_MIN_SOC_URL_TEMPLATE, TOKEN_HEADER, APP_PLATFORM_HEADER
 import logging
 
 _LOGGER = logging.getLogger(__name__)
@@ -683,6 +683,173 @@ class IzyClient:
                     raise
             except Exception as exc:
                 _LOGGER.debug("Error setting meter control %s (attempt %s/%s): %s", serial_number, attempt, max_attempts, exc)
+                if attempt == max_attempts:
+                    raise
+
+            if attempt < max_attempts:
+                jitter = random.random() * 0.5
+                wait = backoff_base * (2 ** (attempt - 1)) + jitter
+                await asyncio.sleep(wait)
+
+    async def async_set_battery_led(self, serial_number: str, value: int) -> Dict[str, Any]:
+        """Set battery LED state (0=off, 1=on)."""
+        max_attempts = 3
+        backoff_base = 1.0
+
+        for attempt in range(1, max_attempts + 1):
+            try:
+                if not self._token_is_valid():
+                    await self.async_login()
+
+                session = async_get_clientsession(self.hass)
+                url = BATTERY_LED_URL_TEMPLATE.format(serial_number=serial_number)
+                body = {"value": value}
+                headers = {TOKEN_HEADER: self._token, "Accept-Language": self._get_language_header(), "app-platform": APP_PLATFORM_HEADER}
+                
+                _LOGGER.info("Setting battery LED for %s: body=%s", serial_number, body)
+                
+                async with session.post(url, json=body, headers=headers, timeout=20) as resp:
+                    text = await resp.text()
+                    _LOGGER.debug("Battery LED response for SN %s (status %s): %s", serial_number, resp.status, text)
+
+                    if resp.status == 401:
+                        _LOGGER.debug("Unauthorized (401) when setting battery LED; will re-login (attempt %s/%s)", attempt, max_attempts)
+                        await self.async_login()
+                        raise Exception("Unauthorized")
+
+                    if 500 <= resp.status < 600:
+                        _LOGGER.debug("Server error %s when setting battery LED (attempt %s/%s)", resp.status, attempt, max_attempts)
+                        raise ServerUnavailableError(f"Server returned {resp.status}")
+
+                    if resp.status != 200:
+                        _LOGGER.error("Failed setting battery LED %s: status %s body %s", serial_number, resp.status, text)
+                        raise Exception(f"HTTP {resp.status}")
+
+                    try:
+                        return json.loads(text)
+                    except Exception:
+                        _LOGGER.error("Invalid JSON from battery LED: %s", text)
+                        raise
+
+            except asyncio.TimeoutError:
+                _LOGGER.debug("Request timed out setting battery LED %s (attempt %s/%s)", serial_number, attempt, max_attempts)
+                if attempt == max_attempts:
+                    raise ServerUnavailableError("Request timed out after all retries")
+            except ServerUnavailableError:
+                if attempt == max_attempts:
+                    raise
+            except Exception as exc:
+                _LOGGER.debug("Error setting battery LED %s (attempt %s/%s): %s", serial_number, attempt, max_attempts, exc)
+                if attempt == max_attempts:
+                    raise
+
+            if attempt < max_attempts:
+                jitter = random.random() * 0.5
+                wait = backoff_base * (2 ** (attempt - 1)) + jitter
+                await asyncio.sleep(wait)
+
+    async def async_get_battery_cmd(self, serial_number: str) -> Dict[str, Any]:
+        """Fetch battery command/settings data including min_soc."""
+        max_attempts = 3
+        backoff_base = 1.0
+
+        for attempt in range(1, max_attempts + 1):
+            try:
+                if not self._token_is_valid():
+                    await self.async_login()
+
+                session = async_get_clientsession(self.hass)
+                url = BATTERY_CMD_URL_TEMPLATE.format(serial_number=serial_number)
+                headers = {TOKEN_HEADER: self._token, "Accept-Language": self._get_language_header(), "app-platform": APP_PLATFORM_HEADER}
+                async with session.get(url, headers=headers, timeout=20) as resp:
+                    text = await resp.text()
+                    _LOGGER.debug("Battery cmd response for SN %s (status %s): %s", serial_number, resp.status, text)
+
+                    if resp.status == 401:
+                        _LOGGER.debug("Unauthorized (401) when fetching battery cmd; will re-login (attempt %s/%s)", attempt, max_attempts)
+                        await self.async_login()
+                        raise Exception("Unauthorized")
+
+                    if 500 <= resp.status < 600:
+                        _LOGGER.debug("Server error %s when fetching battery cmd (attempt %s/%s)", resp.status, attempt, max_attempts)
+                        raise ServerUnavailableError(f"Server returned {resp.status}")
+
+                    if resp.status != 200:
+                        _LOGGER.error("Failed fetching battery cmd %s: status %s body %s", serial_number, resp.status, text)
+                        raise Exception(f"HTTP {resp.status}")
+
+                    try:
+                        return json.loads(text)
+                    except Exception:
+                        _LOGGER.error("Invalid JSON from battery cmd: %s", text)
+                        raise
+
+            except asyncio.TimeoutError:
+                _LOGGER.debug("Request timed out fetching battery cmd %s (attempt %s/%s)", serial_number, attempt, max_attempts)
+                if attempt == max_attempts:
+                    raise ServerUnavailableError("Request timed out after all retries")
+            except ServerUnavailableError:
+                if attempt == max_attempts:
+                    raise
+            except Exception as exc:
+                _LOGGER.debug("Error fetching battery cmd %s (attempt %s/%s): %s", serial_number, attempt, max_attempts, exc)
+                if attempt == max_attempts:
+                    raise
+
+            if attempt < max_attempts:
+                jitter = random.random() * 0.5
+                wait = backoff_base * (2 ** (attempt - 1)) + jitter
+                await asyncio.sleep(wait)
+
+    async def async_set_battery_min_soc(self, serial_number: str, value: int) -> Dict[str, Any]:
+        """Set battery minimum state of charge (discharge limit)."""
+        max_attempts = 3
+        backoff_base = 1.0
+
+        for attempt in range(1, max_attempts + 1):
+            try:
+                if not self._token_is_valid():
+                    await self.async_login()
+
+                session = async_get_clientsession(self.hass)
+                url = BATTERY_MIN_SOC_URL_TEMPLATE.format(serial_number=serial_number)
+                body = {"value": value}
+                headers = {TOKEN_HEADER: self._token, "Accept-Language": self._get_language_header(), "app-platform": APP_PLATFORM_HEADER}
+                
+                _LOGGER.info("Setting battery min_soc for %s: body=%s", serial_number, body)
+                
+                async with session.post(url, json=body, headers=headers, timeout=20) as resp:
+                    text = await resp.text()
+                    _LOGGER.debug("Battery min_soc response for SN %s (status %s): %s", serial_number, resp.status, text)
+
+                    if resp.status == 401:
+                        _LOGGER.debug("Unauthorized (401) when setting battery min_soc; will re-login (attempt %s/%s)", attempt, max_attempts)
+                        await self.async_login()
+                        raise Exception("Unauthorized")
+
+                    if 500 <= resp.status < 600:
+                        _LOGGER.debug("Server error %s when setting battery min_soc (attempt %s/%s)", resp.status, attempt, max_attempts)
+                        raise ServerUnavailableError(f"Server returned {resp.status}")
+
+                    if resp.status != 200:
+                        _LOGGER.error("Failed setting battery min_soc %s: status %s body %s", serial_number, resp.status, text)
+                        raise Exception(f"HTTP {resp.status}")
+
+                    try:
+                        return json.loads(text)
+                    except Exception:
+                        _LOGGER.error("Invalid JSON from battery min_soc: %s", text)
+                        raise
+
+            except asyncio.TimeoutError:
+                _LOGGER.debug("Request timed out setting battery min_soc %s (attempt %s/%s)", serial_number, attempt, max_attempts)
+                if attempt == max_attempts:
+                    raise ServerUnavailableError("Request timed out after all retries")
+            except ServerUnavailableError:
+                if attempt == max_attempts:
+                    raise
+            except Exception as exc:
+                _LOGGER.debug("Error setting battery min_soc %s (attempt %s/%s): %s", serial_number, attempt, max_attempts, exc)
                 if attempt == max_attempts:
                     raise
 

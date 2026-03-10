@@ -343,6 +343,17 @@
     "number": {
       "injection_limit": {
         "name": "Limite d'injection"
+      },
+      "battery_min_soc": {
+        "name": "Min SOC"
+      }
+    },
+    "button": {
+      "battery_led_on": {
+        "name": "Allumer Lumières"
+      },
+      "battery_led_off": {
+        "name": "Eteindre Lumières"
       }
     }
   },
