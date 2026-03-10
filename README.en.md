@@ -1,5 +1,11 @@
 # Izypower Cloud Home Assistant Integration
 
+[![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Maintenance](https://img.shields.io/maintenance/yes/2026.svg)](https://github.com/StefanPlizga/izypower_cloud)
+[![GitHub release](https://img.shields.io/github/release/StefanPlizga/izypower_cloud.svg)](https://github.com/StefanPlizga/izypower_cloud/releases)
+[![GitHub downloads](https://img.shields.io/github/downloads/StefanPlizga/izypower_cloud/total)](https://github.com/StefanPlizga/izypower_cloud/releases)
+
 This custom integration automatically discovers all Izypower Cloud power stations and provides comprehensive monitoring of your solar installation.
 
 **You need an Izypower account to use this integration. Only devices from the Izypower range by Materfrance are supported by this integration.**

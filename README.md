@@ -1,5 +1,11 @@
 # Intégration Izypower Cloud pour Home Assistant
 
+[![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Maintenance](https://img.shields.io/maintenance/yes/2026.svg)](https://github.com/StefanPlizga/izypower_cloud)
+[![GitHub release](https://img.shields.io/github/release/StefanPlizga/izypower_cloud.svg)](https://github.com/StefanPlizga/izypower_cloud/releases)
+[![GitHub downloads](https://img.shields.io/github/downloads/StefanPlizga/izypower_cloud/total)](https://github.com/StefanPlizga/izypower_cloud/releases)
+
 [English version](README.en.md)
 
 Cette intégration personnalisée découvre automatiquement toutes les centrales photovoltaïques Izypower Cloud et fournit une surveillance complète de votre installation solaire.
