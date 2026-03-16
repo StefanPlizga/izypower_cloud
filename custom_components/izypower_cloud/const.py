@@ -18,6 +18,8 @@ METER_CONTROL_URL_TEMPLATE = "http://application.izypowercloud.fr/photo_voltaic/
 BATTERY_LED_URL_TEMPLATE = "http://application.izypowercloud.fr/photo_voltaic/api/v2/device/yz/battery/led/{serial_number}"
 BATTERY_CMD_URL_TEMPLATE = "http://application.izypowercloud.fr/photo_voltaic/api/v2/device/cmd/{serial_number}"
 BATTERY_MIN_SOC_URL_TEMPLATE = "http://application.izypowercloud.fr/photo_voltaic/api/v2/device/yz/battery/min_soc/{serial_number}"
+BATTERY_POWER_URL_TEMPLATE = "http://application.izypowercloud.fr/photo_voltaic/api/v2/device/yz/battery/power/{serial_number}"
+BATTERY_MODE_URL_TEMPLATE = "http://application.izypowercloud.fr/photo_voltaic/api/v2/device/yz/battery/mode/{serial_number}"
 
 TOKEN_HEADER = "x-tts-access-token"
 APP_PLATFORM_HEADER = "izy"

@@ -345,6 +345,22 @@
       },
       "battery_min_soc": {
         "name": "SOC Min"
+      },
+      "battery_max_charge_power": {
+        "name": "Power Max Charge"
+      },
+      "battery_max_discharge_power": {
+        "name": "Power Max Discharge"
+      }
+    },
+    "select": {
+      "battery_control_mode": {
+        "name": "Control Mode",
+        "state": {
+          "0": "Intelligent",
+          "1": "Manual",
+          "2": "Calendar"
+        }
       }
     },
     "button": {
