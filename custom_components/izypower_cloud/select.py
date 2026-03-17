@@ -77,6 +77,20 @@ async def async_setup_entry(
                                 device_name,
                             )
                         )
+                        
+                        # Battery manual mode select - only for master (1000) or standalone (1002) mode
+                        _LOGGER.info("✓✓✓ CREATING BatteryManualModeSelect for device %s (ID: %s, SN: %s)", device_name, device_id, device_sn)
+                        entities.append(
+                            BatteryManualModeSelect(
+                                coordinator,
+                                client,
+                                station_id,
+                                station_name,
+                                device_id,
+                                device_sn,
+                                device_name,
+                            )
+                        )
                     else:
                         _LOGGER.debug(
                             "Skipping control mode select for battery %s (ID: %s): cluster_mode=%s",
@@ -284,3 +298,129 @@ class BatteryControlModeSelect(CoordinatorEntity, SelectEntity):
             _LOGGER.info("Server temporarily unavailable when setting battery mode: %s", exc)
         except Exception as exc:
             _LOGGER.error("Failed to set battery control mode for %s: %s", self._device_sn, exc)
+
+
+class BatteryManualModeSelect(CoordinatorEntity, SelectEntity):
+    """Select entity for battery manual mode (0=Standby, 1=Charge, 2=Discharge)."""
+    
+    has_entity_name = True
+    _attr_options = ["0", "1", "2"]
+    
+    def __init__(
+        self,
+        coordinator,
+        client,
+        station_id: int,
+        station_name: str,
+        device_id: int,
+        device_sn: str,
+        device_name: str,
+    ):
+        """Initialize the select entity."""
+        super().__init__(coordinator)
+        self._client = client
+        self._station_id = station_id
+        self._station_name = station_name
+        self._device_id = device_id
+        self._device_sn = device_sn
+        self._device_name = device_name
+        
+        self._attr_unique_id = f"{device_id}_battery_manual_mode"
+        self._attr_translation_key = "battery_manual_mode"
+        
+        _LOGGER.info("✓✓✓ BatteryManualModeSelect INITIALIZED for device %s (ID: %s, SN: %s)", device_name, device_id, device_sn)
+    
+    @property
+    def device_info(self):
+        """Return device information."""
+        return {
+            "identifiers": {(DOMAIN, f"{ENTITY_ID_PREFIX}_device_{self._device_id}")},
+        }
+    
+    @property
+    def current_option(self) -> str | None:
+        """Return the current manual mode."""
+        coordinator_data = self.coordinator.data or {}
+        stations_devices = coordinator_data.get("stations_devices", {})
+        
+        if self._station_id in stations_devices:
+            battery_cmd = stations_devices[self._station_id].get("battery_cmd", {})
+            device_cmd = _get_by_device_id(battery_cmd, self._device_id) or {}
+            
+            manual_mode = device_cmd.get("data", {}).get("manual", {}).get("mode")
+            
+            return str(manual_mode) if manual_mode is not None else None
+        
+        return None
+    
+    @property
+    def available(self) -> bool:
+        """Return whether the entity is available."""
+        if not self.coordinator.last_update_success:
+            return False
+        
+        coordinator_data = self.coordinator.data or {}
+        stations_devices = coordinator_data.get("stations_devices", {})
+        
+        if self._station_id in stations_devices:
+            battery_cmd = stations_devices[self._station_id].get("battery_cmd", {})
+            device_exists = _get_by_device_id(battery_cmd, self._device_id) is not None
+            
+            if device_exists:
+                # Check cluster mode is still 1000 or 1002
+                device_records = stations_devices[self._station_id].get("data", {}).get("records", [])
+                for device_record in device_records:
+                    if device_record.get("deviceId") == self._device_id:
+                        connect_info_json = device_record.get("connectInfoJson", {})
+                        cluster_mode_str = connect_info_json.get("clusterMode")
+                        cluster_mode = int(cluster_mode_str) if cluster_mode_str else 0
+                        if cluster_mode not in (1000, 1002):
+                            return False
+                        break
+            
+            return device_exists
+        
+        return False
+    
+    async def async_select_option(self, option: str) -> None:
+        """Change the selected option."""
+        try:
+            mode_value = int(option)
+            
+            # Get current power value from coordinator
+            power_value = 0
+            if mode_value != 0:
+                # For non-standby modes, get current power
+                coordinator_data = self.coordinator.data or {}
+                stations_devices = coordinator_data.get("stations_devices", {})
+                if self._station_id in stations_devices:
+                    battery_cmd = stations_devices[self._station_id].get("battery_cmd", {})
+                    device_cmd = _get_by_device_id(battery_cmd, self._device_id) or {}
+                    power_value = device_cmd.get("data", {}).get("manual", {}).get("power", 0)
+            else:
+                # When selecting Standby (mode 0), power must be 0
+                power_value = 0
+            
+            await self._client.async_set_battery_manual_mode_value(
+                serial_number=self._device_sn,
+                mode=mode_value,
+                power=power_value,
+            )
+            
+            # Refresh battery cmd data
+            try:
+                battery_cmd_data = await self._client.async_get_battery_cmd(serial_number=self._device_sn)
+                if self.coordinator.data:
+                    stations_devices = self.coordinator.data.get("stations_devices", {})
+                    if self._station_id in stations_devices:
+                        if "battery_cmd" not in stations_devices[self._station_id]:
+                            stations_devices[self._station_id]["battery_cmd"] = {}
+                        stations_devices[self._station_id]["battery_cmd"][self._device_id] = battery_cmd_data
+                        stations_devices[self._station_id]["battery_cmd"][str(self._device_id)] = battery_cmd_data
+                self.coordinator.async_set_updated_data(self.coordinator.data)
+            except Exception as refresh_exc:
+                _LOGGER.debug("Failed to refresh battery cmd after manual mode change: %s", refresh_exc)
+        except ServerUnavailableError as exc:
+            _LOGGER.info("Server temporarily unavailable when setting battery manual mode: %s", exc)
+        except Exception as exc:
+            _LOGGER.error("Failed to set battery manual mode for %s: %s", self._device_sn, exc)

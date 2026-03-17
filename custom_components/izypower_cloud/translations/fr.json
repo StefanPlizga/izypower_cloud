@@ -352,6 +352,12 @@
       },
       "battery_max_discharge_power": {
         "name": "Puissance Max Décharge"
+      },
+      "battery_manual_charge_power": {
+        "name": "Puissance Charge (Manuelle)"
+      },
+      "battery_manual_discharge_power": {
+        "name": "Puissance Décharge (Manuelle)"
       }
     },
     "select": {
@@ -361,6 +367,14 @@
           "0": "Intelligent",
           "1": "Manuel",
           "2": "Calendrier"
+        }
+      },
+      "battery_manual_mode": {
+        "name": "Mode Manuel",
+        "state": {
+          "0": "Veille",
+          "1": "Charge",
+          "2": "Décharge"
         }
       }
     },

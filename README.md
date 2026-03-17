@@ -155,6 +155,18 @@ Pour tous les appareils de batterie, les contrôles suivants sont disponibles :
 - Protège la santé de la batterie en empêchant une décharge excessive
 - Le réglage s'applique à l'appareil de batterie et à tous ses modules
 
+**Contrôles avancés de batterie**:
+- Les contrôles ci-dessous sont disponibles uniquement pour les batteries en mode cluster Maître (cluster) ou Autonome
+- Mode de Contrôle : `Intelligent`, `Manuel`, `Calendrier`
+- L'option `Intelligent` n'est proposée que si la centrale dispose d'un compteur intelligent compatible
+- Mode Manuel : `Veille`, `Charge`, `Décharge`
+- Puissance Max Charge : définit la limite maximale de charge de la batterie
+- Puissance Max Décharge : définit la limite maximale de décharge de la batterie
+- Puissance Charge (Manuelle) : disponible uniquement lorsque le mode manuel est `Charge`
+- Puissance Décharge (Manuelle) : disponible uniquement lorsque le mode manuel est `Décharge`
+- Lorsque le mode manuel est `Veille`, les deux champs de puissance manuelle sont indisponibles
+- Les champs de puissance manuelle utilisent une plage dynamique de `0` à la puissance maximale correspondante, avec un pas de `50 W`
+
 ### Fonctionnalités Techniques
 
 - Polling Cloud : Récupération des données via API Izypower Cloud
@@ -183,7 +195,7 @@ Pour tous les appareils de batterie, les contrôles suivants sont disponibles :
 - **Sous-appareils Onduleur/Équipement** : Chaque onduleur/équipement sous la centrale avec des capteurs spécifiques (état en ligne, Wi-Fi, chaînes PV, état de charge moyen, mode cluster)
 - **Sous-appareils Batterie** : Pour les batteries avec modules, un appareil batterie parent avec capteurs d'énergie et d'état de charge
 - **Sous-appareils Link de Batterie** : Pour chaque module Link de batterie, un sous-appareil avec son propre état de charge et énergie
-- **Contrôles d'Appareil Batterie** : Boutons de contrôle des lumières LED et réglage du niveau minimum de décharge disponibles pour tous les appareils de batterie
+- **Contrôles d'Appareil Batterie** : Boutons LED et réglage du niveau minimum de décharge pour toutes les batteries, plus contrôles avancés (mode de contrôle, mode manuel, puissances max et puissances manuelles) pour les batteries Maître/Autonome
 - **Appareils Compteur** : Pour les compteurs intelligents, des contrôles sont disponibles pour gérer le blocage d'injection et la limite d'injection au réseau
 - **Regroupement logique** : Tous les capteurs sont correctement catégorisés avec les classes d'appareil et d'état appropriées pour la compatibilité avec le tableau de bord Énergie de Home Assistant
 

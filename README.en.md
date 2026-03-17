@@ -153,6 +153,18 @@ For all battery devices, the following controls are available:
 - Protects battery health by preventing excessive discharge
 - Setting applies to the battery device and all its modules
 
+**Advanced Battery Controls**:
+- The controls below are available only for batteries in Master (cluster mode) or Standalone
+- Control Mode: `Intelligent`, `Manual`, `Calendar`
+- The `Intelligent` option is shown only when the station has a compatible smart meter
+- Manual Mode: `Standby`, `Charge`, `Discharge`
+- Max Charge Power: sets the maximum allowed battery charging power
+- Max Discharge Power: sets the maximum allowed battery discharging power
+- Power Charge (Manual): available only when manual mode is `Charge`
+- Power Discharge (Manual): available only when manual mode is `Discharge`
+- When manual mode is `Standby`, both manual power fields are unavailable
+- Manual power fields use a dynamic range from `0` to the corresponding max power value, with `50 W` increments
+
 ### Meter Device Controls
 
 For smart meter devices, the following controls are available:
@@ -189,7 +201,7 @@ For smart meter devices, the following controls are available:
 - **Inverter/Equipment Sub-devices**: Each inverter/equipment under the station with device-specific sensors (online state, WiFi, PV strings, average state of charge, cluster mode)
 - **Battery Sub-devices**: For batteries with modules, a parent battery device with energy and state of charge sensors
 - **Battery Link Sub-devices**: For each individual battery module, a sub-device with its own state of charge and energy
-- **Battery Device Controls**: LED light control buttons and minimum discharge level setting available for all battery devices
+- **Battery Device Controls**: LED light buttons and minimum discharge level for all batteries, plus advanced controls (control mode, manual mode, max power, and manual power fields) for Master/Standalone batteries
 - **Meter Devices**: For smart meters, injection control switch and injection limit number entities for managing grid export
 - **Logical grouping**: All sensors properly categorized with appropriate device classes and state classes for Home Assistant Energy dashboard compatibility
 

@@ -116,6 +116,30 @@ async def async_setup_entry(
                                 cluster_mode,
                             )
                         )
+                        
+                        # Manual Power (split by mode)
+                        entities.append(
+                            BatteryManualChargePowerNumber(
+                                coordinator,
+                                client,
+                                station_id,
+                                station_name,
+                                device_id,
+                                device_sn,
+                                device_name,
+                            )
+                        )
+                        entities.append(
+                            BatteryManualDischargePowerNumber(
+                                coordinator,
+                                client,
+                                station_id,
+                                station_name,
+                                device_id,
+                                device_sn,
+                                device_name,
+                            )
+                        )
     
     async_add_entities(entities)
 
@@ -714,3 +738,210 @@ class BatteryMaxDischargePowerNumber(CoordinatorEntity, NumberEntity):
         except Exception as exc:
             _LOGGER.error("Failed to set battery max discharge power for %s: %s", self._device_sn, exc)
 
+
+class _BatteryManualPowerBaseNumber(CoordinatorEntity, NumberEntity):
+    """Base number entity for battery manual power per mode."""
+    
+    has_entity_name = True
+    _attr_mode = NumberMode.BOX
+    _attr_native_min_value = 0
+    _attr_native_step = 50
+    _attr_suggested_display_precision = 0
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
+    
+    _manual_mode_target: int = 0
+
+    def __init__(
+        self,
+        coordinator,
+        client,
+        station_id: int,
+        station_name: str,
+        device_id: int,
+        device_sn: str,
+        device_name: str,
+    ):
+        """Initialize the number entity."""
+        super().__init__(coordinator)
+        self._client = client
+        self._station_id = station_id
+        self._station_name = station_name
+        self._device_id = device_id
+        self._device_sn = device_sn
+        self._device_name = device_name
+
+    def _get_device_cmd(self) -> dict | None:
+        """Return battery cmd payload for this device."""
+        coordinator_data = self.coordinator.data or {}
+        stations_devices = coordinator_data.get("stations_devices", {})
+        if self._station_id not in stations_devices:
+            return None
+        battery_cmd = stations_devices[self._station_id].get("battery_cmd", {})
+        return _get_by_device_id(battery_cmd, self._device_id) if self._device_id else None
+
+    def _is_supported_cluster_mode(self) -> bool:
+        """Return True when battery is master or standalone."""
+        coordinator_data = self.coordinator.data or {}
+        stations_devices = coordinator_data.get("stations_devices", {})
+        if self._station_id not in stations_devices:
+            return False
+
+        device_records = stations_devices[self._station_id].get("data", {}).get("records", [])
+        for device_record in device_records:
+            if device_record.get("deviceId") == self._device_id:
+                connect_info_json = device_record.get("connectInfoJson", {})
+                cluster_mode_str = connect_info_json.get("clusterMode")
+                cluster_mode = int(cluster_mode_str) if cluster_mode_str else 0
+                return cluster_mode in (1000, 1002)
+        return False
+    
+    @property
+    def device_info(self):
+        """Return device information."""
+        return {
+            "identifiers": {(DOMAIN, f"{ENTITY_ID_PREFIX}_device_{self._device_id}")},
+        }
+    
+    @property
+    def native_value(self) -> int | None:
+        """Return the current manual power."""
+        device_cmd = self._get_device_cmd()
+        if device_cmd:
+            manual_power = device_cmd.get("data", {}).get("manual", {}).get("power")
+            return int(manual_power) if manual_power is not None else None
+
+        return None
+
+    @property
+    def native_max_value(self) -> int:
+        """Return dynamic max value from battery power limits."""
+        device_cmd = self._get_device_cmd()
+        if not device_cmd:
+            return 0
+
+        power_data = device_cmd.get("data", {}).get("power", {})
+        return self._get_manual_power_limit(power_data)
+
+    def _get_manual_power_limit(self, power_data: dict) -> int:
+        """Return max value for the specific manual power entity."""
+        raise NotImplementedError
+    
+    @property
+    def available(self) -> bool:
+        """Return whether the entity is available for its matching manual mode."""
+        if not self.coordinator.last_update_success:
+            return False
+        if not self._is_supported_cluster_mode():
+            return False
+
+        device_cmd = self._get_device_cmd()
+        if not device_cmd:
+            return False
+
+        manual_mode = device_cmd.get("data", {}).get("manual", {}).get("mode")
+        return manual_mode == self._manual_mode_target
+    
+    async def async_set_native_value(self, value: float) -> None:
+        """Set the manual power for this entity's manual mode."""
+        try:
+            power_value = int(value)
+
+            await self._client.async_set_battery_manual_mode_value(
+                serial_number=self._device_sn,
+                mode=self._manual_mode_target,
+                power=power_value,
+            )
+            
+            # Refresh battery cmd data
+            try:
+                battery_cmd_data = await self._client.async_get_battery_cmd(serial_number=self._device_sn)
+                if self.coordinator.data:
+                    stations_devices = self.coordinator.data.get("stations_devices", {})
+                    if self._station_id in stations_devices:
+                        if "battery_cmd" not in stations_devices[self._station_id]:
+                            stations_devices[self._station_id]["battery_cmd"] = {}
+                        stations_devices[self._station_id]["battery_cmd"][self._device_id] = battery_cmd_data
+                        stations_devices[self._station_id]["battery_cmd"][str(self._device_id)] = battery_cmd_data
+                self.coordinator.async_set_updated_data(self.coordinator.data)
+            except Exception as refresh_exc:
+                _LOGGER.debug("Failed to refresh battery cmd after manual power change: %s", refresh_exc)
+        except ServerUnavailableError as exc:
+            _LOGGER.info("Server temporarily unavailable when setting battery manual power: %s", exc)
+        except Exception as exc:
+            _LOGGER.error("Failed to set battery manual power for %s: %s", self._device_sn, exc)
+
+
+class BatteryManualChargePowerNumber(_BatteryManualPowerBaseNumber):
+    """Number entity to control battery manual charge power."""
+
+    _manual_mode_target = 1
+
+    def __init__(
+        self,
+        coordinator,
+        client,
+        station_id: int,
+        station_name: str,
+        device_id: int,
+        device_sn: str,
+        device_name: str,
+    ):
+        """Initialize the number entity."""
+        super().__init__(coordinator, client, station_id, station_name, device_id, device_sn, device_name)
+        self._attr_unique_id = f"{device_id}_battery_manual_charge_power"
+        self._attr_translation_key = "battery_manual_charge_power"
+
+    def _get_manual_power_limit(self, power_data: dict) -> int:
+        """Max equals current Power Max Charge value."""
+        max_in_power = power_data.get("max_in_power")
+        return int(max_in_power) if max_in_power is not None else 0
+
+
+class BatteryManualDischargePowerNumber(_BatteryManualPowerBaseNumber):
+    """Number entity to control battery manual discharge power."""
+
+    _manual_mode_target = 2
+
+    def __init__(
+        self,
+        coordinator,
+        client,
+        station_id: int,
+        station_name: str,
+        device_id: int,
+        device_sn: str,
+        device_name: str,
+    ):
+        """Initialize the number entity."""
+        super().__init__(coordinator, client, station_id, station_name, device_id, device_sn, device_name)
+        self._attr_unique_id = f"{device_id}_battery_manual_discharge_power"
+        self._attr_translation_key = "battery_manual_discharge_power"
+
+    def _get_manual_power_limit(self, power_data: dict) -> int:
+        """Max equals current Power Max Discharge value."""
+        coordinator_data = self.coordinator.data or {}
+        stations_devices = coordinator_data.get("stations_devices", {})
+
+        current_cluster_mode = 0
+        if self._station_id in stations_devices:
+            device_records = stations_devices[self._station_id].get("data", {}).get("records", [])
+            for device_record in device_records:
+                if device_record.get("deviceId") == self._device_id:
+                    connect_info_json = device_record.get("connectInfoJson", {})
+                    cluster_mode_str = connect_info_json.get("clusterMode")
+                    current_cluster_mode = int(cluster_mode_str) if cluster_mode_str else 0
+                    break
+
+        if current_cluster_mode == 1000:
+            max_out_power = power_data.get("cluster_max_out_power")
+        else:
+            max_out_power = power_data.get("max_out_power")
+
+        return int(max_out_power) if max_out_power is not None else 0
+
+
+def _get_by_device_id(mapping: dict, device_id: int):
+    """Return mapping value for device_id supporting int or str keys."""
+    if device_id in mapping:
+        return mapping.get(device_id)
+    return mapping.get(str(device_id))
