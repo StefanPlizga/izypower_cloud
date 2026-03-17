@@ -103,7 +103,6 @@ class BatteryControlModeSelect(CoordinatorEntity, SelectEntity):
     """
     
     has_entity_name = True
-    _attr_options = ["0", "1", "2"]
     
     def __init__(
         self,
@@ -128,6 +127,48 @@ class BatteryControlModeSelect(CoordinatorEntity, SelectEntity):
         self._attr_translation_key = "battery_control_mode"
         
         _LOGGER.info("✓✓✓ BatteryControlModeSelect INITIALIZED for device %s (ID: %s, SN: %s)", device_name, device_id, device_sn)
+
+    def _get_station_devices(self) -> dict:
+        """Return station-scoped coordinator data."""
+        coordinator_data = self.coordinator.data or {}
+        stations_devices = coordinator_data.get("stations_devices", {})
+        return stations_devices.get(self._station_id, {})
+
+    def _get_battery_cmd(self) -> dict:
+        """Return battery command payload for this device."""
+        station_devices = self._get_station_devices()
+        battery_cmd = station_devices.get("battery_cmd", {})
+        return _get_by_device_id(battery_cmd, self._device_id) or {}
+
+    def _has_smart_meter(self) -> bool:
+        """Return whether this station has a smart meter available for intelligent mode."""
+        device_cmd = self._get_battery_cmd()
+        has_meter = device_cmd.get("data", {}).get("hasMeter")
+        if has_meter is not None:
+            _LOGGER.info(
+                "✓✓✓ [ControlMode] Device %s - hasMeter from battery_cmd: %s",
+                self._device_id,
+                has_meter,
+            )
+            return bool(has_meter)
+
+        station_devices = self._get_station_devices()
+        meter_base_info = station_devices.get("meter_base_info", {})
+        if any(value for value in meter_base_info.values()):
+            _LOGGER.info(
+                "✓✓✓ [ControlMode] Device %s - inferred smart meter from meter_base_info",
+                self._device_id,
+            )
+            return True
+
+        device_records = station_devices.get("data", {}).get("records", [])
+        has_meter_device = any(device_record.get("deviceType") == "meter" for device_record in device_records)
+        _LOGGER.info(
+            "✓✓✓ [ControlMode] Device %s - inferred smart meter from device page: %s",
+            self._device_id,
+            has_meter_device,
+        )
+        return has_meter_device
     
     @property
     def device_info(self):
@@ -135,6 +176,13 @@ class BatteryControlModeSelect(CoordinatorEntity, SelectEntity):
         return {
             "identifiers": {(DOMAIN, f"{ENTITY_ID_PREFIX}_device_{self._device_id}")},
         }
+
+    @property
+    def options(self) -> list[str]:
+        """Return the available control modes for this battery."""
+        if self._has_smart_meter():
+            return ["0", "1", "2"]
+        return ["1", "2"]
     
     @property
     def current_option(self) -> str | None:
@@ -147,8 +195,7 @@ class BatteryControlModeSelect(CoordinatorEntity, SelectEntity):
         _LOGGER.info("✓✓✓ [ControlMode] Device %s - station_id in stations_devices: %s", self._device_id, self._station_id in stations_devices)
         
         if self._station_id in stations_devices:
-            battery_cmd = stations_devices[self._station_id].get("battery_cmd", {})
-            device_cmd = _get_by_device_id(battery_cmd, self._device_id) or {}
+            device_cmd = self._get_battery_cmd()
             
             _LOGGER.info("✓✓✓ [ControlMode] Device %s battery_cmd keys: %s", self._device_id, list(device_cmd.keys()) if device_cmd else None)
             _LOGGER.info("✓✓✓ [ControlMode] Device %s full device_cmd: %s", self._device_id, device_cmd)
@@ -174,8 +221,7 @@ class BatteryControlModeSelect(CoordinatorEntity, SelectEntity):
         
         if self._station_id in stations_devices:
             # Check if device exists in battery_cmd
-            battery_cmd = stations_devices[self._station_id].get("battery_cmd", {})
-            device_exists = _get_by_device_id(battery_cmd, self._device_id) is not None
+            device_exists = bool(self._get_battery_cmd())
             
             _LOGGER.info("✓✓✓ [ControlMode] Device %s - device_exists in battery_cmd: %s", self._device_id, device_exists)
             
@@ -206,6 +252,13 @@ class BatteryControlModeSelect(CoordinatorEntity, SelectEntity):
     async def async_select_option(self, option: str) -> None:
         """Change the selected option."""
         try:
+            if option == "0" and not self._has_smart_meter():
+                _LOGGER.warning(
+                    "Refusing Intelligent mode for device %s because no smart meter is available",
+                    self._device_sn,
+                )
+                return
+
             # Convert option string to integer
             ctr_mode_value = int(option)
             
