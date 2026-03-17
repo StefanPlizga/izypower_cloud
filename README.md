@@ -115,7 +115,7 @@ Merci à Khirale, MarcoCMG, Wellgo et Zyos67 pour leurs tests et retours.
 - Puissance individuelle par chaîne PV (PV1, PV2, etc.) en Watts
 
 **Capteurs Spécifiques** (selon le type d'appareil) :
-- Température (°C) - pour les micro-onduleurs
+- Température (°C) - pour les micro-onduleurs et batteries
 - État de Charge Moyen (%) - pour les appareils avec batterie intégrée
 - Mode Cluster - pour les appareils en configuration multi-onduleur (Maître/Esclave/Autonome)
 

@@ -113,7 +113,7 @@ Thanks to Khirale, MarcoCMG, Wellgo and Zyos67 for testing and feedback.
 - Individual PV string power (PV1, PV2, etc.) in Watts
 
 **Device-Specific Sensors** (depending on device type):
-- Temperature (°C) - for micro-inverters
+- Temperature (°C) - for micro-inverters and batteries
 - Average State of Charge (%) - for devices with integrated battery
 - Cluster Mode - for devices in multi-inverter configuration (Master/Slave/Standalone)
 

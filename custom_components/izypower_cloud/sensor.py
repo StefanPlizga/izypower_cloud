@@ -334,6 +334,7 @@ class DeviceTemperatureSensor(DeviceBaseSensor):
     _attr_device_class = SensorDeviceClass.TEMPERATURE
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = "°C"
+    _attr_entity_category = None
     
     def __init__(self, coordinator, station_id: int, station_name: str, device_record: dict):
         """Initialize the temperature sensor."""
@@ -573,6 +574,83 @@ class BatteryLinkEnergySensor(BatteryLinksBaseSensor):
             if item.get("sn") == self._link_sn:
                 return item.get("kwh")
         
+        return None
+
+
+class BatteryDeviceTemperatureSensor(BatteryLinksBaseSensor):
+    """Sensor for battery device temperature (socTemp) in °C."""
+
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = "°C"
+    _attr_entity_category = None
+
+    def __init__(self, coordinator, station_id: int, station_name: str, device_id: int, device_name: str):
+        """Initialize the battery device temperature sensor."""
+        super().__init__(coordinator, station_id, station_name, device_id)
+        self._device_name = device_name
+        self._attr_unique_id = f"{ENTITY_ID_PREFIX}_device_{device_id}_battery_temperature"
+        self._attr_translation_key = "temperature"
+
+    @property
+    def device_info(self):
+        """Return device information for this battery device."""
+        return {
+            "identifiers": {(DOMAIN, f"{ENTITY_ID_PREFIX}_device_{self._device_id}")},
+        }
+
+    @property
+    def native_value(self):
+        """Return battery temperature from data.socTemp."""
+        battery_links_data = self._get_battery_links_data()
+        value = battery_links_data.get("data", {}).get("socTemp")
+        if value is None:
+            return None
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return None
+
+
+class BatteryLinkTemperatureSensor(BatteryLinksBaseSensor):
+    """Sensor for battery link temperature (items[].temp) in °C."""
+
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = "°C"
+    _attr_entity_category = None
+
+    def __init__(self, coordinator, station_id: int, station_name: str, parent_device_id: int, parent_device_name: str, link_sn: str):
+        """Initialize the battery link temperature sensor."""
+        super().__init__(coordinator, station_id, station_name, parent_device_id)
+        self._parent_device_name = parent_device_name
+        self._link_sn = link_sn
+        self._attr_unique_id = f"{ENTITY_ID_PREFIX}_battery_link_{link_sn}_temperature"
+        self._attr_translation_key = "temperature"
+
+    @property
+    def device_info(self):
+        """Return device information for this battery link."""
+        return {
+            "identifiers": {(DOMAIN, f"{ENTITY_ID_PREFIX}_battery_link_{self._link_sn}")},
+        }
+
+    @property
+    def native_value(self):
+        """Return battery link temperature from items[].temp."""
+        battery_links_data = self._get_battery_links_data()
+        items = battery_links_data.get("data", {}).get("items", [])
+
+        for item in items:
+            if item.get("sn") == self._link_sn:
+                value = item.get("temp")
+                if value is None:
+                    return None
+                try:
+                    return float(value)
+                except (ValueError, TypeError):
+                    return None
+
         return None
 
 
@@ -889,6 +967,10 @@ def _create_battery_link_sensors(coordinator, station_id: int, station_name: str
         # Add battery device total energy sensor (socKwh) to the parent battery device
         _LOGGER.info("Creating battery device energy sensor for device %s (ID: %s)", parent_device_name, battery_device_id)
         entities.append(BatteryDeviceEnergySensor(coordinator, station_id, station_name, battery_device_id, parent_device_name))
+
+        # Add battery device temperature sensor from data.socTemp
+        _LOGGER.info("Creating battery device temperature sensor for device %s (ID: %s)", parent_device_name, battery_device_id)
+        entities.append(BatteryDeviceTemperatureSensor(coordinator, station_id, station_name, battery_device_id, parent_device_name))
         
         # Add battery device state sensor based on battery power
         _LOGGER.info("Creating battery device state sensor for device %s (ID: %s)", parent_device_name, battery_device_id)
@@ -913,6 +995,7 @@ def _create_battery_link_sensors(coordinator, station_id: int, station_name: str
                 _LOGGER.info("Creating battery link sensors for SN: %s (parent: %s)", link_sn, parent_device_name)
                 entities.append(BatteryLinkSOCSensor(coordinator, station_id, station_name, battery_device_id, parent_device_name, link_sn))
                 entities.append(BatteryLinkEnergySensor(coordinator, station_id, station_name, battery_device_id, parent_device_name, link_sn))
+                entities.append(BatteryLinkTemperatureSensor(coordinator, station_id, station_name, battery_device_id, parent_device_name, link_sn))
             else:
                 _LOGGER.warning("Battery link item missing 'sn' field: %s", item)
 
