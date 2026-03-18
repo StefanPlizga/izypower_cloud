@@ -62,6 +62,34 @@ async def async_setup_entry(
                     cluster_mode_str = connect_info_json.get("clusterMode")
                     cluster_mode = int(cluster_mode_str) if cluster_mode_str else 0
                     
+                    # Off-grid select is available for all batteries with battery_cmd data
+                    _LOGGER.info("✓✓✓ CREATING BatteryOffgridModeSelect for device %s (ID: %s, SN: %s)", device_name, device_id, device_sn)
+                    entities.append(
+                        BatteryOffgridModeSelect(
+                            coordinator,
+                            client,
+                            station_id,
+                            station_name,
+                            device_id,
+                            device_sn,
+                            device_name,
+                        )
+                    )
+                    
+                    # Calibration time select
+                    _LOGGER.info("✓✓✓ CREATING BatteryCalibrationTimeSelect for device %s (ID: %s, SN: %s)", device_name, device_id, device_sn)
+                    entities.append(
+                        BatteryCalibrationTimeSelect(
+                            coordinator,
+                            client,
+                            station_id,
+                            station_name,
+                            device_id,
+                            device_sn,
+                            device_name,
+                        )
+                    )
+                    
                     if cluster_mode in (1000, 1002):
                         _LOGGER.debug("Creating control mode select for battery device: %s (ID: %s, cluster_mode: %s)", 
                                      device_name, device_id, cluster_mode)
@@ -424,3 +452,220 @@ class BatteryManualModeSelect(CoordinatorEntity, SelectEntity):
             _LOGGER.info("Server temporarily unavailable when setting battery manual mode: %s", exc)
         except Exception as exc:
             _LOGGER.error("Failed to set battery manual mode for %s: %s", self._device_sn, exc)
+
+
+class BatteryOffgridModeSelect(CoordinatorEntity, SelectEntity):
+    """Select entity for battery off-grid mode (1=Invester, 2=Always, 3=When power cut)."""
+    
+    has_entity_name = True
+    _attr_options = ["1", "2", "3"]
+    
+    def __init__(
+        self,
+        coordinator,
+        client,
+        station_id: int,
+        station_name: str,
+        device_id: int,
+        device_sn: str,
+        device_name: str,
+    ):
+        """Initialize the select entity."""
+        super().__init__(coordinator)
+        self._client = client
+        self._station_id = station_id
+        self._station_name = station_name
+        self._device_id = device_id
+        self._device_sn = device_sn
+        self._device_name = device_name
+        
+        self._attr_unique_id = f"{device_id}_battery_offgrid_mode"
+        self._attr_translation_key = "battery_offgrid_mode"
+        
+        _LOGGER.info("✓✓✓ BatteryOffgridModeSelect INITIALIZED for device %s (ID: %s, SN: %s)", device_name, device_id, device_sn)
+    
+    @property
+    def device_info(self):
+        """Return device information."""
+        return {
+            "identifiers": {(DOMAIN, f"{ENTITY_ID_PREFIX}_device_{self._device_id}")},
+        }
+    
+    @property
+    def current_option(self) -> str | None:
+        """Return the current off-grid mode."""
+        coordinator_data = self.coordinator.data or {}
+        stations_devices = coordinator_data.get("stations_devices", {})
+        
+        if self._station_id in stations_devices:
+            battery_cmd = stations_devices[self._station_id].get("battery_cmd", {})
+            device_cmd = _get_by_device_id(battery_cmd, self._device_id) or {}
+            
+            offgrid_mode = device_cmd.get("data", {}).get("offGrid", {}).get("value")
+            
+            return str(offgrid_mode) if offgrid_mode is not None else None
+        
+        return None
+    
+    @property
+    def available(self) -> bool:
+        """Return whether the entity is available. Only available when backup outlet is enabled."""
+        if not self.coordinator.last_update_success:
+            return False
+        
+        coordinator_data = self.coordinator.data or {}
+        stations_devices = coordinator_data.get("stations_devices", {})
+        
+        if self._station_id in stations_devices:
+            battery_cmd = stations_devices[self._station_id].get("battery_cmd", {})
+            device_cmd = _get_by_device_id(battery_cmd, self._device_id)
+            
+            if device_cmd:
+                # Only available when backup outlet (offGrid.open) is enabled
+                return device_cmd.get("data", {}).get("offGrid", {}).get("open", False)
+        
+        return False
+    
+    async def async_select_option(self, option: str) -> None:
+        """Change the selected option."""
+        try:
+            mode_value = int(option)
+            
+            await self._client.async_set_offgrid_mode(
+                serial_number=self._device_sn,
+                value=mode_value,
+            )
+            
+            # Refresh battery cmd data
+            try:
+                battery_cmd_data = await self._client.async_get_battery_cmd(serial_number=self._device_sn)
+                if self.coordinator.data:
+                    stations_devices = self.coordinator.data.get("stations_devices", {})
+                    if self._station_id in stations_devices:
+                        if "battery_cmd" not in stations_devices[self._station_id]:
+                            stations_devices[self._station_id]["battery_cmd"] = {}
+                        stations_devices[self._station_id]["battery_cmd"][self._device_id] = battery_cmd_data
+                        stations_devices[self._station_id]["battery_cmd"][str(self._device_id)] = battery_cmd_data
+                self.coordinator.async_set_updated_data(self.coordinator.data)
+            except Exception as refresh_exc:
+                _LOGGER.debug("Failed to refresh battery cmd after off-grid mode change: %s", refresh_exc)
+        except ServerUnavailableError as exc:
+            _LOGGER.info("Server temporarily unavailable when setting battery off-grid mode: %s", exc)
+        except Exception as exc:
+            _LOGGER.error("Failed to set battery off-grid mode for %s: %s", self._device_sn, exc)
+
+
+class BatteryCalibrationTimeSelect(CoordinatorEntity, SelectEntity):
+    """Select entity for battery calibration time (HH:MM format, 5-minute increments)."""
+    
+    has_entity_name = True
+    
+    def __init__(
+        self,
+        coordinator,
+        client,
+        station_id: int,
+        station_name: str,
+        device_id: int,
+        device_sn: str,
+        device_name: str,
+    ):
+        """Initialize the select entity."""
+        super().__init__(coordinator)
+        self._client = client
+        self._station_id = station_id
+        self._station_name = station_name
+        self._device_id = device_id
+        self._device_sn = device_sn
+        self._device_name = device_name
+        
+        self._attr_unique_id = f"{device_id}_battery_calibration_time"
+        self._attr_translation_key = "battery_calibration_time"
+        
+        _LOGGER.info("✓✓✓ BatteryCalibrationTimeSelect INITIALIZED for device %s (ID: %s, SN: %s)", device_name, device_id, device_sn)
+    
+    @staticmethod
+    def _generate_time_options() -> list[str]:
+        """Generate time options from 00:00 to 23:55 with 5-minute increments."""
+        options = []
+        for hour in range(24):
+            for minute in range(0, 60, 5):
+                options.append(f"{hour:02d}:{minute:02d}")
+        return options
+    
+    @property
+    def device_info(self):
+        """Return device information."""
+        return {
+            "identifiers": {(DOMAIN, f"{ENTITY_ID_PREFIX}_device_{self._device_id}")},
+        }
+    
+    @property
+    def options(self) -> list[str]:
+        """Return the available time options."""
+        return self._generate_time_options()
+    
+    @property
+    def current_option(self) -> str | None:
+        """Return the current calibration time."""
+        coordinator_data = self.coordinator.data or {}
+        stations_devices = coordinator_data.get("stations_devices", {})
+        
+        if self._station_id in stations_devices:
+            battery_cmd = stations_devices[self._station_id].get("battery_cmd", {})
+            device_cmd = _get_by_device_id(battery_cmd, self._device_id) or {}
+            
+            calibration_time = device_cmd.get("data", {}).get("fullCharge", {}).get("time")
+            
+            return str(calibration_time) if calibration_time is not None else None
+        
+        return None
+    
+    @property
+    def available(self) -> bool:
+        """Return whether the entity is available. Only available when calibration is enabled."""
+        if not self.coordinator.last_update_success:
+            return False
+        
+        coordinator_data = self.coordinator.data or {}
+        stations_devices = coordinator_data.get("stations_devices", {})
+        
+        if self._station_id in stations_devices:
+            battery_cmd = stations_devices[self._station_id].get("battery_cmd", {})
+            device_cmd = _get_by_device_id(battery_cmd, self._device_id)
+            
+            if device_cmd:
+                # Only available when calibration (fullCharge.open) is enabled
+                return device_cmd.get("data", {}).get("fullCharge", {}).get("open", False)
+        
+        return False
+    
+    async def async_select_option(self, option: str) -> None:
+        """Change the selected option."""
+        try:
+            # option should be in HH:MM format
+            time_value = str(option)
+            
+            await self._client.async_set_fullcharge_time(
+                serial_number=self._device_sn,
+                value=time_value,
+            )
+            
+            # Refresh battery cmd data
+            try:
+                battery_cmd_data = await self._client.async_get_battery_cmd(serial_number=self._device_sn)
+                if self.coordinator.data:
+                    stations_devices = self.coordinator.data.get("stations_devices", {})
+                    if self._station_id in stations_devices:
+                        if "battery_cmd" not in stations_devices[self._station_id]:
+                            stations_devices[self._station_id]["battery_cmd"] = {}
+                        stations_devices[self._station_id]["battery_cmd"][self._device_id] = battery_cmd_data
+                        stations_devices[self._station_id]["battery_cmd"][str(self._device_id)] = battery_cmd_data
+                self.coordinator.async_set_updated_data(self.coordinator.data)
+            except Exception as refresh_exc:
+                _LOGGER.debug("Failed to refresh battery cmd after calibration time change: %s", refresh_exc)
+        except ServerUnavailableError as exc:
+            _LOGGER.info("Server temporarily unavailable when setting battery calibration time: %s", exc)
+        except Exception as exc:
+            _LOGGER.error("Failed to set battery calibration time for %s: %s", self._device_sn, exc)
+

@@ -337,6 +337,12 @@
     "switch": {
       "injection_control": {
         "name": "Injection Blocking"
+      },
+      "battery_offgrid": {
+        "name": "Backup Outlet"
+      },
+      "battery_calibration": {
+        "name": "Calibration"
       }
     },
     "number": {
@@ -357,6 +363,9 @@
       },
       "battery_manual_discharge_power": {
         "name": "Power Discharge (Manual)"
+      },
+      "battery_calibration_interval": {
+        "name": "Calibration Interval"
       }
     },
     "select": {
@@ -375,6 +384,17 @@
           "1": "Charge",
           "2": "Discharge"
         }
+      },
+      "battery_offgrid_mode": {
+        "name": "Backup Outlet Mode",
+        "state": {
+          "1": "Invester",
+          "2": "Always",
+          "3": "When power cut"
+        }
+      },
+      "battery_calibration_time": {
+        "name": "Calibration Time"
       }
     },
     "button": {

@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from .const import LOGIN_URL, STATIONS_URL, DEVICE_PAGE_URL_TEMPLATE, COMPONENT_URL_TEMPLATE, STATION_INFO_URL_TEMPLATE, REPORT_URL_TEMPLATE, DEVICE_WIFI_URL_TEMPLATE, BATTERY_LINKS_URL_TEMPLATE, DEVICE_TEMP_URL_TEMPLATE, DEVICE_UPGRADE_URL_TEMPLATE, METER_BASE_INFO_URL_TEMPLATE, METER_CONTROL_URL_TEMPLATE, BATTERY_LED_URL_TEMPLATE, BATTERY_CMD_URL_TEMPLATE, BATTERY_MIN_SOC_URL_TEMPLATE, BATTERY_POWER_URL_TEMPLATE, BATTERY_MODE_URL_TEMPLATE, BATTERY_MANUAL_MODE_VALUE_URL_TEMPLATE, TOKEN_HEADER, APP_PLATFORM_HEADER
+from .const import LOGIN_URL, STATIONS_URL, DEVICE_PAGE_URL_TEMPLATE, COMPONENT_URL_TEMPLATE, STATION_INFO_URL_TEMPLATE, REPORT_URL_TEMPLATE, DEVICE_WIFI_URL_TEMPLATE, BATTERY_LINKS_URL_TEMPLATE, DEVICE_TEMP_URL_TEMPLATE, DEVICE_UPGRADE_URL_TEMPLATE, METER_BASE_INFO_URL_TEMPLATE, METER_CONTROL_URL_TEMPLATE, BATTERY_LED_URL_TEMPLATE, BATTERY_CMD_URL_TEMPLATE, BATTERY_TOGGLE_OFFGRID_URL_TEMPLATE, BATTERY_OFFGRID_URL_TEMPLATE, BATTERY_TOGGLE_FULLCHARGE_DAYS_URL_TEMPLATE, BATTERY_FULLCHARGE_DAYS_URL_TEMPLATE, BATTERY_FULLCHARGE_TIME_URL_TEMPLATE, BATTERY_MIN_SOC_URL_TEMPLATE, BATTERY_POWER_URL_TEMPLATE, BATTERY_MODE_URL_TEMPLATE, BATTERY_MANUAL_MODE_VALUE_URL_TEMPLATE, TOKEN_HEADER, APP_PLATFORM_HEADER
 import logging
 
 _LOGGER = logging.getLogger(__name__)
@@ -1037,6 +1037,291 @@ class IzyClient:
                     raise
             except Exception as exc:
                 _LOGGER.debug("Error setting battery manual mode/power %s (attempt %s/%s): %s", serial_number, attempt, max_attempts, exc)
+                if attempt == max_attempts:
+                    raise
+
+            if attempt < max_attempts:
+                jitter = random.random() * 0.5
+                wait = backoff_base * (2 ** (attempt - 1)) + jitter
+                await asyncio.sleep(wait)
+
+    async def async_toggle_offgrid(self, serial_number: str, value: bool) -> Dict[str, Any]:
+        """Toggle battery off-grid (backup outlet) mode."""
+        max_attempts = 3
+        backoff_base = 1.0
+
+        for attempt in range(1, max_attempts + 1):
+            try:
+                if not self._token_is_valid():
+                    await self.async_login()
+
+                session = async_get_clientsession(self.hass)
+                url = BATTERY_TOGGLE_OFFGRID_URL_TEMPLATE.format(serial_number=serial_number)
+                body = {"value": value}
+                headers = {TOKEN_HEADER: self._token, "Accept-Language": self._get_language_header(), "app-platform": APP_PLATFORM_HEADER}
+                
+                _LOGGER.info("Toggling battery off-grid for %s: body=%s", serial_number, body)
+                
+                async with session.post(url, json=body, headers=headers, timeout=20) as resp:
+                    text = await resp.text()
+                    _LOGGER.debug("Battery toggle off-grid response for SN %s (status %s): %s", serial_number, resp.status, text)
+
+                    if resp.status == 401:
+                        _LOGGER.debug("Unauthorized (401) when toggling battery off-grid; will re-login (attempt %s/%s)", attempt, max_attempts)
+                        await self.async_login()
+                        raise Exception("Unauthorized")
+
+                    if 500 <= resp.status < 600:
+                        _LOGGER.debug("Server error %s when toggling battery off-grid (attempt %s/%s)", resp.status, attempt, max_attempts)
+                        raise ServerUnavailableError(f"Server returned {resp.status}")
+
+                    if resp.status != 200:
+                        _LOGGER.error("Failed toggling battery off-grid %s: status %s body %s", serial_number, resp.status, text)
+                        raise Exception(f"HTTP {resp.status}")
+
+                    try:
+                        return json.loads(text)
+                    except Exception:
+                        _LOGGER.error("Invalid JSON from battery toggle off-grid: %s", text)
+                        raise
+
+            except asyncio.TimeoutError:
+                _LOGGER.debug("Request timed out toggling battery off-grid %s (attempt %s/%s)", serial_number, attempt, max_attempts)
+                if attempt == max_attempts:
+                    raise ServerUnavailableError("Request timed out after all retries")
+            except ServerUnavailableError:
+                if attempt == max_attempts:
+                    raise
+            except Exception as exc:
+                _LOGGER.debug("Error toggling battery off-grid %s (attempt %s/%s): %s", serial_number, attempt, max_attempts, exc)
+                if attempt == max_attempts:
+                    raise
+
+            if attempt < max_attempts:
+                jitter = random.random() * 0.5
+                wait = backoff_base * (2 ** (attempt - 1)) + jitter
+                await asyncio.sleep(wait)
+
+    async def async_set_offgrid_mode(self, serial_number: str, value: int) -> Dict[str, Any]:
+        """Set battery off-grid mode (1=Invester, 2=Always, 3=When power cut)."""
+        max_attempts = 3
+        backoff_base = 1.0
+
+        for attempt in range(1, max_attempts + 1):
+            try:
+                if not self._token_is_valid():
+                    await self.async_login()
+
+                session = async_get_clientsession(self.hass)
+                url = BATTERY_OFFGRID_URL_TEMPLATE.format(serial_number=serial_number)
+                body = {"value": value}
+                headers = {TOKEN_HEADER: self._token, "Accept-Language": self._get_language_header(), "app-platform": APP_PLATFORM_HEADER}
+                
+                _LOGGER.info("Setting battery off-grid mode for %s: body=%s", serial_number, body)
+                
+                async with session.post(url, json=body, headers=headers, timeout=20) as resp:
+                    text = await resp.text()
+                    _LOGGER.debug("Battery off-grid mode response for SN %s (status %s): %s", serial_number, resp.status, text)
+
+                    if resp.status == 401:
+                        _LOGGER.debug("Unauthorized (401) when setting battery off-grid mode; will re-login (attempt %s/%s)", attempt, max_attempts)
+                        await self.async_login()
+                        raise Exception("Unauthorized")
+
+                    if 500 <= resp.status < 600:
+                        _LOGGER.debug("Server error %s when setting battery off-grid mode (attempt %s/%s)", resp.status, attempt, max_attempts)
+                        raise ServerUnavailableError(f"Server returned {resp.status}")
+
+                    if resp.status != 200:
+                        _LOGGER.error("Failed setting battery off-grid mode %s: status %s body %s", serial_number, resp.status, text)
+                        raise Exception(f"HTTP {resp.status}")
+
+                    try:
+                        return json.loads(text)
+                    except Exception:
+                        _LOGGER.error("Invalid JSON from battery off-grid mode: %s", text)
+                        raise
+
+            except asyncio.TimeoutError:
+                _LOGGER.debug("Request timed out setting battery off-grid mode %s (attempt %s/%s)", serial_number, attempt, max_attempts)
+                if attempt == max_attempts:
+                    raise ServerUnavailableError("Request timed out after all retries")
+            except ServerUnavailableError:
+                if attempt == max_attempts:
+                    raise
+            except Exception as exc:
+                _LOGGER.debug("Error setting battery off-grid mode %s (attempt %s/%s): %s", serial_number, attempt, max_attempts, exc)
+                if attempt == max_attempts:
+                    raise
+
+            if attempt < max_attempts:
+                jitter = random.random() * 0.5
+                wait = backoff_base * (2 ** (attempt - 1)) + jitter
+                await asyncio.sleep(wait)
+
+    async def async_toggle_fullcharge_days(self, serial_number: str, value: bool) -> Dict[str, Any]:
+        """Toggle battery calibration (full charge) mode."""
+        max_attempts = 3
+        backoff_base = 1.0
+
+        for attempt in range(1, max_attempts + 1):
+            try:
+                if not self._token_is_valid():
+                    await self.async_login()
+
+                session = async_get_clientsession(self.hass)
+                url = BATTERY_TOGGLE_FULLCHARGE_DAYS_URL_TEMPLATE.format(serial_number=serial_number)
+                body = {"value": value}
+                headers = {TOKEN_HEADER: self._token, "Accept-Language": self._get_language_header(), "app-platform": APP_PLATFORM_HEADER}
+                
+                _LOGGER.info("Toggling battery calibration for %s: body=%s", serial_number, body)
+                
+                async with session.post(url, json=body, headers=headers, timeout=20) as resp:
+                    text = await resp.text()
+                    _LOGGER.debug("Battery toggle calibration response for SN %s (status %s): %s", serial_number, resp.status, text)
+
+                    if resp.status == 401:
+                        _LOGGER.debug("Unauthorized (401) when toggling battery calibration; will re-login (attempt %s/%s)", attempt, max_attempts)
+                        await self.async_login()
+                        raise Exception("Unauthorized")
+
+                    if 500 <= resp.status < 600:
+                        _LOGGER.debug("Server error %s when toggling battery calibration (attempt %s/%s)", resp.status, attempt, max_attempts)
+                        raise ServerUnavailableError(f"Server returned {resp.status}")
+
+                    if resp.status != 200:
+                        _LOGGER.error("Failed toggling battery calibration %s: status %s body %s", serial_number, resp.status, text)
+                        raise Exception(f"HTTP {resp.status}")
+
+                    try:
+                        return json.loads(text)
+                    except Exception:
+                        _LOGGER.error("Invalid JSON from battery toggle calibration: %s", text)
+                        raise
+
+            except asyncio.TimeoutError:
+                _LOGGER.debug("Request timed out toggling battery calibration %s (attempt %s/%s)", serial_number, attempt, max_attempts)
+                if attempt == max_attempts:
+                    raise ServerUnavailableError("Request timed out after all retries")
+            except ServerUnavailableError:
+                if attempt == max_attempts:
+                    raise
+            except Exception as exc:
+                _LOGGER.debug("Error toggling battery calibration %s (attempt %s/%s): %s", serial_number, attempt, max_attempts, exc)
+                if attempt == max_attempts:
+                    raise
+
+            if attempt < max_attempts:
+                jitter = random.random() * 0.5
+                wait = backoff_base * (2 ** (attempt - 1)) + jitter
+                await asyncio.sleep(wait)
+
+    async def async_set_fullcharge_days(self, serial_number: str, value: int) -> Dict[str, Any]:
+        """Set battery calibration interval in days."""
+        max_attempts = 3
+        backoff_base = 1.0
+
+        for attempt in range(1, max_attempts + 1):
+            try:
+                if not self._token_is_valid():
+                    await self.async_login()
+
+                session = async_get_clientsession(self.hass)
+                url = BATTERY_FULLCHARGE_DAYS_URL_TEMPLATE.format(serial_number=serial_number)
+                body = {"value": value}
+                headers = {TOKEN_HEADER: self._token, "Accept-Language": self._get_language_header(), "app-platform": APP_PLATFORM_HEADER}
+                
+                _LOGGER.info("Setting battery calibration interval for %s: body=%s", serial_number, body)
+                
+                async with session.post(url, json=body, headers=headers, timeout=20) as resp:
+                    text = await resp.text()
+                    _LOGGER.debug("Battery calibration interval response for SN %s (status %s): %s", serial_number, resp.status, text)
+
+                    if resp.status == 401:
+                        _LOGGER.debug("Unauthorized (401) when setting battery calibration interval; will re-login (attempt %s/%s)", attempt, max_attempts)
+                        await self.async_login()
+                        raise Exception("Unauthorized")
+
+                    if 500 <= resp.status < 600:
+                        _LOGGER.debug("Server error %s when setting battery calibration interval (attempt %s/%s)", resp.status, attempt, max_attempts)
+                        raise ServerUnavailableError(f"Server returned {resp.status}")
+
+                    if resp.status != 200:
+                        _LOGGER.error("Failed setting battery calibration interval %s: status %s body %s", serial_number, resp.status, text)
+                        raise Exception(f"HTTP {resp.status}")
+
+                    try:
+                        return json.loads(text)
+                    except Exception:
+                        _LOGGER.error("Invalid JSON from battery calibration interval: %s", text)
+                        raise
+
+            except asyncio.TimeoutError:
+                _LOGGER.debug("Request timed out setting battery calibration interval %s (attempt %s/%s)", serial_number, attempt, max_attempts)
+                if attempt == max_attempts:
+                    raise ServerUnavailableError("Request timed out after all retries")
+            except ServerUnavailableError:
+                if attempt == max_attempts:
+                    raise
+            except Exception as exc:
+                _LOGGER.debug("Error setting battery calibration interval %s (attempt %s/%s): %s", serial_number, attempt, max_attempts, exc)
+                if attempt == max_attempts:
+                    raise
+
+            if attempt < max_attempts:
+                jitter = random.random() * 0.5
+                wait = backoff_base * (2 ** (attempt - 1)) + jitter
+                await asyncio.sleep(wait)
+
+    async def async_set_fullcharge_time(self, serial_number: str, value: str) -> Dict[str, Any]:
+        """Set battery calibration time (HH:MM format)."""
+        max_attempts = 3
+        backoff_base = 1.0
+
+        for attempt in range(1, max_attempts + 1):
+            try:
+                if not self._token_is_valid():
+                    await self.async_login()
+
+                session = async_get_clientsession(self.hass)
+                url = BATTERY_FULLCHARGE_TIME_URL_TEMPLATE.format(serial_number=serial_number)
+                body = {"value": value}
+                headers = {TOKEN_HEADER: self._token, "Accept-Language": self._get_language_header(), "app-platform": APP_PLATFORM_HEADER}
+                
+                _LOGGER.info("Setting battery calibration time for %s: body=%s", serial_number, body)
+                
+                async with session.post(url, json=body, headers=headers, timeout=20) as resp:
+                    text = await resp.text()
+                    _LOGGER.debug("Battery calibration time response for SN %s (status %s): %s", serial_number, resp.status, text)
+
+                    if resp.status == 401:
+                        _LOGGER.debug("Unauthorized (401) when setting battery calibration time; will re-login (attempt %s/%s)", attempt, max_attempts)
+                        await self.async_login()
+                        raise Exception("Unauthorized")
+
+                    if 500 <= resp.status < 600:
+                        _LOGGER.debug("Server error %s when setting battery calibration time (attempt %s/%s)", resp.status, attempt, max_attempts)
+                        raise ServerUnavailableError(f"Server returned {resp.status}")
+
+                    if resp.status != 200:
+                        _LOGGER.error("Failed setting battery calibration time %s: status %s body %s", serial_number, resp.status, text)
+                        raise Exception(f"HTTP {resp.status}")
+
+                    try:
+                        return json.loads(text)
+                    except Exception:
+                        _LOGGER.error("Invalid JSON from battery calibration time: %s", text)
+                        raise
+
+            except asyncio.TimeoutError:
+                _LOGGER.debug("Request timed out setting battery calibration time %s (attempt %s/%s)", serial_number, attempt, max_attempts)
+                if attempt == max_attempts:
+                    raise ServerUnavailableError("Request timed out after all retries")
+            except ServerUnavailableError:
+                if attempt == max_attempts:
+                    raise
+            except Exception as exc:
+                _LOGGER.debug("Error setting battery calibration time %s (attempt %s/%s): %s", serial_number, attempt, max_attempts, exc)
                 if attempt == max_attempts:
                     raise
 

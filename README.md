@@ -167,6 +167,21 @@ Pour tous les appareils de batterie, les contrôles suivants sont disponibles :
 - Lorsque le mode manuel est `Veille`, les deux champs de puissance manuelle sont indisponibles
 - Les champs de puissance manuelle utilisent une plage dynamique de `0` à la puissance maximale correspondante, avec un pas de `50 W`
 
+**Contrôles de Prise Secours (Hors-Réseau)**:
+- Interrupteur Prise Secours : Active/désactive la prise secours pour le fonctionnement hors-réseau
+- Sélection du Mode Prise Secours : Choisissez le mode de fonctionnement hors-réseau
+  - `Micro-onduleur` : Mode micro-onduleur
+  - `Toujours` : Fournir toujours de l'énergie de secours
+  - `Lors de coupure` : Fournir de l'énergie de secours uniquement en cas de coupure de réseau
+- Le sélecteur de mode n'est disponible que si l'interrupteur Prise Secours est activé
+
+**Contrôles de Calibration**:
+- Interrupteur Calibration : Active/désactive la calibration de la batterie (mode charge complète)
+- Nombre Intervalle de Calibration : Définissez l'intervalle de calibration entre 5 et 60 jours (incréments de 1 jour)
+- Sélection Heure de Calibration : Définissez l'heure à laquelle la calibration doit avoir lieu (de 00:00 à 23:55, incréments de 5 minutes)
+- L'intervalle et l'heure de calibration ne sont disponibles que si l'interrupteur de calibration est activé
+- La calibration aide à maintenir la santé de la batterie en effectuant périodiquement des cycles de charge/décharge complets
+
 ### Fonctionnalités Techniques
 
 - Polling Cloud : Récupération des données via API Izypower Cloud
@@ -195,7 +210,7 @@ Pour tous les appareils de batterie, les contrôles suivants sont disponibles :
 - **Sous-appareils Onduleur/Équipement** : Chaque onduleur/équipement sous la centrale avec des capteurs spécifiques (état en ligne, Wi-Fi, chaînes PV, état de charge moyen, mode cluster)
 - **Sous-appareils Batterie** : Pour les batteries avec modules, un appareil batterie parent avec capteurs d'énergie et d'état de charge
 - **Sous-appareils Link de Batterie** : Pour chaque module Link de batterie, un sous-appareil avec son propre état de charge et énergie
-- **Contrôles d'Appareil Batterie** : Boutons LED et réglage du niveau minimum de décharge pour toutes les batteries, plus contrôles avancés (mode de contrôle, mode manuel, puissances max et puissances manuelles) pour les batteries Maître/Autonome
+- **Contrôles d'Appareil Batterie** : Boutons LED et réglage du niveau minimum de décharge pour toutes les batteries, plus contrôles avancés (mode de contrôle, mode manuel, puissances max et puissances manuelles) pour les batteries Maître/Autonome, contrôles de prise secours (interrupteur et sélection de mode) pour toutes les batteries, et contrôles de calibration (interrupteur, intervalle et heure) pour toutes les batteries
 - **Appareils Compteur** : Pour les compteurs intelligents, des contrôles sont disponibles pour gérer le blocage d'injection et la limite d'injection au réseau
 - **Regroupement logique** : Tous les capteurs sont correctement catégorisés avec les classes d'appareil et d'état appropriées pour la compatibilité avec le tableau de bord Énergie de Home Assistant
 

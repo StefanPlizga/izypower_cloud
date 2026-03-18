@@ -338,6 +338,12 @@
     "switch": {
       "injection_control": {
         "name": "Blocage d'injection"
+      },
+      "battery_offgrid": {
+        "name": "Prise Secours"
+      },
+      "battery_calibration": {
+        "name": "Calibration"
       }
     },
     "number": {
@@ -358,6 +364,9 @@
       },
       "battery_manual_discharge_power": {
         "name": "Puissance Décharge (Manuelle)"
+      },
+      "battery_calibration_interval": {
+        "name": "Intervalle Calibration"
       }
     },
     "select": {
@@ -376,6 +385,17 @@
           "1": "Charge",
           "2": "Décharge"
         }
+      },
+      "battery_offgrid_mode": {
+        "name": "Mode Prise Secours",
+        "state": {
+          "1": "Micro-onduleur",
+          "2": "Toujours",
+          "3": "Lors de coupure"
+        }
+      },
+      "battery_calibration_time": {
+        "name": "Heure de calibration"
       }
     },
     "button": {

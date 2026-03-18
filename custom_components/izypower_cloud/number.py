@@ -79,6 +79,21 @@ async def async_setup_entry(
                         )
                     )
                     
+                    # Battery calibration interval (full charge days)
+                    _LOGGER.debug("Creating calibration interval number for battery device: %s (ID: %s, SN: %s)", 
+                                 device_name, device_id, device_sn)
+                    entities.append(
+                        BatteryCalibrationIntervalNumber(
+                            coordinator,
+                            client,
+                            station_id,
+                            station_name,
+                            device_id,
+                            device_sn,
+                            device_name,
+                        )
+                    )
+                    
                     # Battery power read-only entities (max charge/discharge)
                     # Only for master (1000) or standalone (1002) mode
                     # Read from connectInfoJson.clusterMode (string from DEVICE_PAGE_URL_TEMPLATE)
@@ -938,6 +953,108 @@ class BatteryManualDischargePowerNumber(_BatteryManualPowerBaseNumber):
             max_out_power = power_data.get("max_out_power")
 
         return int(max_out_power) if max_out_power is not None else 0
+
+
+class BatteryCalibrationIntervalNumber(CoordinatorEntity, NumberEntity):
+    """Number entity for battery calibration interval (5-60 days, increments of 1)."""
+    
+    has_entity_name = True
+    _attr_mode = NumberMode.SLIDER
+    _attr_native_step = 1
+    _attr_native_min_value = 5
+    _attr_native_max_value = 60
+    _attr_native_unit_of_measurement = "days"
+    
+    def __init__(
+        self,
+        coordinator,
+        client,
+        station_id: int,
+        station_name: str,
+        device_id: int,
+        device_sn: str,
+        device_name: str,
+    ):
+        """Initialize the number entity."""
+        super().__init__(coordinator)
+        self._client = client
+        self._station_id = station_id
+        self._station_name = station_name
+        self._device_id = device_id
+        self._device_sn = device_sn
+        self._device_name = device_name
+        
+        self._attr_unique_id = f"{device_id}_battery_calibration_interval"
+        self._attr_translation_key = "battery_calibration_interval"
+    
+    @property
+    def device_info(self):
+        """Return device information."""
+        return {
+            "identifiers": {(DOMAIN, f"{ENTITY_ID_PREFIX}_device_{self._device_id}")},
+        }
+    
+    @property
+    def native_value(self) -> float | None:
+        """Return the current calibration interval value."""
+        coordinator_data = self.coordinator.data or {}
+        stations_devices = coordinator_data.get("stations_devices", {})
+        
+        if self._station_id in stations_devices:
+            battery_cmd = stations_devices[self._station_id].get("battery_cmd", {})
+            device_cmd = _get_by_device_id(battery_cmd, self._device_id) or {}
+            
+            days = device_cmd.get("data", {}).get("fullCharge", {}).get("days")
+            return float(days) if days is not None else None
+        
+        return None
+    
+    @property
+    def available(self) -> bool:
+        """Return whether the entity is available. Only available when calibration is enabled."""
+        if not self.coordinator.last_update_success:
+            return False
+        
+        coordinator_data = self.coordinator.data or {}
+        stations_devices = coordinator_data.get("stations_devices", {})
+        
+        if self._station_id in stations_devices:
+            battery_cmd = stations_devices[self._station_id].get("battery_cmd", {})
+            device_cmd = _get_by_device_id(battery_cmd, self._device_id)
+            
+            if device_cmd:
+                # Only available when calibration (fullCharge.open) is enabled
+                return device_cmd.get("data", {}).get("fullCharge", {}).get("open", False)
+        
+        return False
+    
+    async def async_set_native_value(self, value: float) -> None:
+        """Set the calibration interval."""
+        try:
+            interval_value = int(value)
+            
+            await self._client.async_set_fullcharge_days(
+                serial_number=self._device_sn,
+                value=interval_value,
+            )
+            
+            # Refresh battery cmd data
+            try:
+                battery_cmd_data = await self._client.async_get_battery_cmd(serial_number=self._device_sn)
+                if self.coordinator.data:
+                    stations_devices = self.coordinator.data.get("stations_devices", {})
+                    if self._station_id in stations_devices:
+                        if "battery_cmd" not in stations_devices[self._station_id]:
+                            stations_devices[self._station_id]["battery_cmd"] = {}
+                        stations_devices[self._station_id]["battery_cmd"][self._device_id] = battery_cmd_data
+                        stations_devices[self._station_id]["battery_cmd"][str(self._device_id)] = battery_cmd_data
+                self.coordinator.async_set_updated_data(self.coordinator.data)
+            except Exception as refresh_exc:
+                _LOGGER.debug("Failed to refresh battery cmd after calibration interval change: %s", refresh_exc)
+        except ServerUnavailableError as exc:
+            _LOGGER.info("Server temporarily unavailable when setting calibration interval: %s", exc)
+        except Exception as exc:
+            _LOGGER.error("Failed to set battery calibration interval for %s: %s", self._device_sn, exc)
 
 
 def _get_by_device_id(mapping: dict, device_id: int):

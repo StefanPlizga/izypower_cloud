@@ -165,6 +165,21 @@ For all battery devices, the following controls are available:
 - When manual mode is `Standby`, both manual power fields are unavailable
 - Manual power fields use a dynamic range from `0` to the corresponding max power value, with `50 W` increments
 
+**Backup Outlet (Off-Grid) Controls**:
+- Backup Outlet Toggle: Enable/disable the backup outlet for off-grid operation
+- Backup Outlet Mode Select: Choose the off-grid operation mode
+  - `Invester`: Micro-inverter mode
+  - `Always`: Always provide backup power
+  - `When power cut`: Provide backup power only during grid outages
+- Mode select is only available when the Backup Outlet toggle is enabled
+
+**Calibration Controls**:
+- Calibration Toggle: Enable/disable battery calibration (full charge mode)
+- Calibration Interval Number: Set the calibration interval between 5 and 60 days (1-day increments)
+- Calibration Time Select: Set the time when calibration should occur (from 00:00 to 23:55, 5-minute increments)
+- Both the interval number and time select are only available when the Calibration toggle is enabled
+- Calibration helps maintain battery health by periodically performing full charge/discharge cycles
+
 ### Meter Device Controls
 
 For smart meter devices, the following controls are available:
@@ -201,7 +216,7 @@ For smart meter devices, the following controls are available:
 - **Inverter/Equipment Sub-devices**: Each inverter/equipment under the station with device-specific sensors (online state, WiFi, PV strings, average state of charge, cluster mode)
 - **Battery Sub-devices**: For batteries with modules, a parent battery device with energy and state of charge sensors
 - **Battery Link Sub-devices**: For each individual battery module, a sub-device with its own state of charge and energy
-- **Battery Device Controls**: LED light buttons and minimum discharge level for all batteries, plus advanced controls (control mode, manual mode, max power, and manual power fields) for Master/Standalone batteries
+- **Battery Device Controls**: LED light buttons and minimum discharge level for all batteries, plus advanced controls (control mode, manual mode, max power, and manual power fields) for Master/Standalone batteries, backup outlet controls (toggle and mode select) for all batteries, and calibration controls (toggle, interval, and time) for all batteries
 - **Meter Devices**: For smart meters, injection control switch and injection limit number entities for managing grid export
 - **Logical grouping**: All sensors properly categorized with appropriate device classes and state classes for Home Assistant Energy dashboard compatibility
 

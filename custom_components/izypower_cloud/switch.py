@@ -59,6 +59,34 @@ async def async_setup_entry(
                             device_name,
                         )
                     )
+                elif device_type == "battery" and device_id and device_sn:
+                    # Get battery_cmd data for this device
+                    battery_cmd_dict = stations_devices[station_id].get("battery_cmd", {})
+                    battery_cmd_for_device = battery_cmd_dict.get(device_id) or battery_cmd_dict.get(str(device_id))
+                    
+                    if battery_cmd_for_device is not None:
+                        entities.append(
+                            BatteryOffgridSwitch(
+                                coordinator,
+                                client,
+                                station_id,
+                                station_name,
+                                device_id,
+                                device_sn,
+                                device_name,
+                            )
+                        )
+                        entities.append(
+                            BatteryCalibrationSwitch(
+                                coordinator,
+                                client,
+                                station_id,
+                                station_name,
+                                device_id,
+                                device_sn,
+                                device_name,
+                            )
+                        )
     
     async_add_entities(entities)
 
@@ -231,3 +259,243 @@ class MeterInjectionControlSwitch(CoordinatorEntity, SwitchEntity):
             _LOGGER.info("Server temporarily unavailable when setting meter control: %s", exc)
         except Exception as exc:
             _LOGGER.error("Failed to turn off injection control for %s: %s", self._device_sn, exc)
+
+
+class BatteryOffgridSwitch(CoordinatorEntity, SwitchEntity):
+    """Switch to control battery backup outlet (off-grid mode)."""
+    
+    has_entity_name = True
+    
+    def __init__(
+        self,
+        coordinator,
+        client,
+        station_id: int,
+        station_name: str,
+        device_id: int,
+        device_sn: str,
+        device_name: str,
+    ):
+        """Initialize the switch."""
+        super().__init__(coordinator)
+        self._client = client
+        self._station_id = station_id
+        self._station_name = station_name
+        self._device_id = device_id
+        self._device_sn = device_sn
+        self._device_name = device_name
+        
+        self._attr_unique_id = f"{device_id}_battery_offgrid"
+        self._attr_translation_key = "battery_offgrid"
+    
+    @property
+    def device_info(self):
+        """Return device information."""
+        return {
+            "identifiers": {(DOMAIN, f"{ENTITY_ID_PREFIX}_device_{self._device_id}")},
+        }
+    
+    @property
+    def is_on(self) -> bool | None:
+        """Return True if backup outlet is enabled."""
+        coordinator_data = self.coordinator.data or {}
+        stations_devices = coordinator_data.get("stations_devices", {})
+        
+        if self._station_id in stations_devices:
+            battery_cmd = stations_devices[self._station_id].get("battery_cmd", {})
+            device_cmd = battery_cmd.get(self._device_id) or battery_cmd.get(str(self._device_id))
+            if device_cmd:
+                return device_cmd.get("data", {}).get("offGrid", {}).get("open", False)
+        
+        return None
+    
+    @property
+    def available(self) -> bool:
+        """Return True if entity is available."""
+        if not self.coordinator.last_update_success:
+            return False
+        
+        coordinator_data = self.coordinator.data or {}
+        stations_devices = coordinator_data.get("stations_devices", {})
+        
+        if self._station_id in stations_devices:
+            battery_cmd = stations_devices[self._station_id].get("battery_cmd", {})
+            device_cmd = battery_cmd.get(self._device_id) or battery_cmd.get(str(self._device_id))
+            return device_cmd is not None
+        
+        return False
+    
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Turn on backup outlet."""
+        _LOGGER.debug("Turning on backup outlet for %s", self._device_sn)
+        
+        try:
+            await self._client.async_toggle_offgrid(
+                serial_number=self._device_sn,
+                value=True,
+            )
+            # Refresh battery cmd data
+            try:
+                battery_cmd_data = await self._client.async_get_battery_cmd(serial_number=self._device_sn)
+                if self.coordinator.data:
+                    stations_devices = self.coordinator.data.get("stations_devices", {})
+                    if self._station_id in stations_devices:
+                        if "battery_cmd" not in stations_devices[self._station_id]:
+                            stations_devices[self._station_id]["battery_cmd"] = {}
+                        stations_devices[self._station_id]["battery_cmd"][self._device_id] = battery_cmd_data
+                        stations_devices[self._station_id]["battery_cmd"][str(self._device_id)] = battery_cmd_data
+                self.coordinator.async_set_updated_data(self.coordinator.data)
+            except Exception as refresh_exc:
+                _LOGGER.debug("Failed to refresh battery cmd after backup outlet change: %s", refresh_exc)
+        except ServerUnavailableError as exc:
+            _LOGGER.info("Server temporarily unavailable when toggling backup outlet: %s", exc)
+        except Exception as exc:
+            _LOGGER.error("Failed to turn on backup outlet for %s: %s", self._device_sn, exc)
+    
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Turn off backup outlet."""
+        _LOGGER.debug("Turning off backup outlet for %s", self._device_sn)
+        
+        try:
+            await self._client.async_toggle_offgrid(
+                serial_number=self._device_sn,
+                value=False,
+            )
+            # Refresh battery cmd data
+            try:
+                battery_cmd_data = await self._client.async_get_battery_cmd(serial_number=self._device_sn)
+                if self.coordinator.data:
+                    stations_devices = self.coordinator.data.get("stations_devices", {})
+                    if self._station_id in stations_devices:
+                        if "battery_cmd" not in stations_devices[self._station_id]:
+                            stations_devices[self._station_id]["battery_cmd"] = {}
+                        stations_devices[self._station_id]["battery_cmd"][self._device_id] = battery_cmd_data
+                        stations_devices[self._station_id]["battery_cmd"][str(self._device_id)] = battery_cmd_data
+                self.coordinator.async_set_updated_data(self.coordinator.data)
+            except Exception as refresh_exc:
+                _LOGGER.debug("Failed to refresh battery cmd after backup outlet change: %s", refresh_exc)
+        except ServerUnavailableError as exc:
+            _LOGGER.info("Server temporarily unavailable when toggling backup outlet: %s", exc)
+        except Exception as exc:
+            _LOGGER.error("Failed to turn off backup outlet for %s: %s", self._device_sn, exc)
+
+
+class BatteryCalibrationSwitch(CoordinatorEntity, SwitchEntity):
+    """Switch to control battery calibration (full charge)."""
+    
+    has_entity_name = True
+    
+    def __init__(
+        self,
+        coordinator,
+        client,
+        station_id: int,
+        station_name: str,
+        device_id: int,
+        device_sn: str,
+        device_name: str,
+    ):
+        """Initialize the switch."""
+        super().__init__(coordinator)
+        self._client = client
+        self._station_id = station_id
+        self._station_name = station_name
+        self._device_id = device_id
+        self._device_sn = device_sn
+        self._device_name = device_name
+        
+        self._attr_unique_id = f"{device_id}_battery_calibration"
+        self._attr_translation_key = "battery_calibration"
+    
+    @property
+    def device_info(self):
+        """Return device information."""
+        return {
+            "identifiers": {(DOMAIN, f"{ENTITY_ID_PREFIX}_device_{self._device_id}")},
+        }
+    
+    @property
+    def is_on(self) -> bool | None:
+        """Return True if calibration is enabled."""
+        coordinator_data = self.coordinator.data or {}
+        stations_devices = coordinator_data.get("stations_devices", {})
+        
+        if self._station_id in stations_devices:
+            battery_cmd = stations_devices[self._station_id].get("battery_cmd", {})
+            device_cmd = battery_cmd.get(self._device_id) or battery_cmd.get(str(self._device_id))
+            if device_cmd:
+                return device_cmd.get("data", {}).get("fullCharge", {}).get("open", False)
+        
+        return None
+    
+    @property
+    def available(self) -> bool:
+        """Return True if entity is available."""
+        if not self.coordinator.last_update_success:
+            return False
+        
+        coordinator_data = self.coordinator.data or {}
+        stations_devices = coordinator_data.get("stations_devices", {})
+        
+        if self._station_id in stations_devices:
+            battery_cmd = stations_devices[self._station_id].get("battery_cmd", {})
+            device_cmd = battery_cmd.get(self._device_id) or battery_cmd.get(str(self._device_id))
+            return device_cmd is not None
+        
+        return False
+    
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Turn on calibration."""
+        _LOGGER.debug("Turning on calibration for %s", self._device_sn)
+        
+        try:
+            await self._client.async_toggle_fullcharge_days(
+                serial_number=self._device_sn,
+                value=True,
+            )
+            # Refresh battery cmd data
+            try:
+                battery_cmd_data = await self._client.async_get_battery_cmd(serial_number=self._device_sn)
+                if self.coordinator.data:
+                    stations_devices = self.coordinator.data.get("stations_devices", {})
+                    if self._station_id in stations_devices:
+                        if "battery_cmd" not in stations_devices[self._station_id]:
+                            stations_devices[self._station_id]["battery_cmd"] = {}
+                        stations_devices[self._station_id]["battery_cmd"][self._device_id] = battery_cmd_data
+                        stations_devices[self._station_id]["battery_cmd"][str(self._device_id)] = battery_cmd_data
+                self.coordinator.async_set_updated_data(self.coordinator.data)
+            except Exception as refresh_exc:
+                _LOGGER.debug("Failed to refresh battery cmd after calibration change: %s", refresh_exc)
+        except ServerUnavailableError as exc:
+            _LOGGER.info("Server temporarily unavailable when toggling calibration: %s", exc)
+        except Exception as exc:
+            _LOGGER.error("Failed to turn on calibration for %s: %s", self._device_sn, exc)
+    
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Turn off calibration."""
+        _LOGGER.debug("Turning off calibration for %s", self._device_sn)
+        
+        try:
+            await self._client.async_toggle_fullcharge_days(
+                serial_number=self._device_sn,
+                value=False,
+            )
+            # Refresh battery cmd data
+            try:
+                battery_cmd_data = await self._client.async_get_battery_cmd(serial_number=self._device_sn)
+                if self.coordinator.data:
+                    stations_devices = self.coordinator.data.get("stations_devices", {})
+                    if self._station_id in stations_devices:
+                        if "battery_cmd" not in stations_devices[self._station_id]:
+                            stations_devices[self._station_id]["battery_cmd"] = {}
+                        stations_devices[self._station_id]["battery_cmd"][self._device_id] = battery_cmd_data
+                        stations_devices[self._station_id]["battery_cmd"][str(self._device_id)] = battery_cmd_data
+                self.coordinator.async_set_updated_data(self.coordinator.data)
+            except Exception as refresh_exc:
+                _LOGGER.debug("Failed to refresh battery cmd after calibration change: %s", refresh_exc)
+        except ServerUnavailableError as exc:
+            _LOGGER.info("Server temporarily unavailable when toggling calibration: %s", exc)
+        except Exception as exc:
+            _LOGGER.error("Failed to turn off calibration for %s: %s", self._device_sn, exc)
+
+
