@@ -238,7 +238,7 @@ Pour les appareils compteur intelligent, les contrôles suivants sont disponible
   - Pourcentages de taux
   - État des appareils et informations Wi-Fi
   - Production individuelle des chaînes PV
-  - Canaux CT (`CT2`, `CT3`, etc.) depuis le dernier nœud `extra` de `layoutPower`
+  - Canaux CT (`CT2`, `CT3`) du Smart IA
   - Données de batterie
 
 ## Remarques
@@ -250,5 +250,4 @@ Pour les appareils compteur intelligent, les contrôles suivants sont disponible
 - Le capteur d'état de charge moyen n'apparaît que pour les appareils avec batterie intégrée
 - Le capteur de mode cluster n'apparaît que pour les appareils en configuration multi-onduleur
 - Les sous-appareils de batterie sont créés automatiquement pour les batteries avec modules Link
-- Les capteurs CT (`CT2`, `CT3`, etc.) n'apparaissent que si des items `ct*` sont présents dans le dernier nœud `extra` de `layoutPower`
 - Si les identifiants expirent, une notification persistante invitera à la réauthentification
