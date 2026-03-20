@@ -112,6 +112,9 @@ Thanks to Khirale, MarcoCMG, Wellgo and Zyos67 for testing and feedback.
 **PV Production**:
 - Individual PV string power (PV1, PV2, etc.) in Watts
 
+**CT Sensors Smart IA**:
+- CT2 and CT3 are listed when a smart meter is configured and configured for single-phase power, in Watts
+
 **Device-Specific Sensors** (depending on device type):
 - Temperature (°C) - for micro-inverters and batteries
 - Average State of Charge (%) - for devices with integrated battery
@@ -232,6 +235,7 @@ For smart meter devices, the following controls are available:
   - Rate percentages
   - Device status and WiFi information
   - Individual PV string production
+  - CT2 and CT3 (only when a smart meter is configured and monophased)
   - Battery data
 
 ## Notes
@@ -243,4 +247,5 @@ For smart meter devices, the following controls are available:
 - Average state of charge sensor only appears for devices with integrated battery
 - Cluster mode sensor only appears for devices in multi-inverter configuration
 - Battery Link sub-devices are automatically created for batteries with individual modules
+- CT2 and CT3 are listed only when a smart meter is configured and monophased.
 - If credentials expire, a persistent notification will prompt reauthentication
