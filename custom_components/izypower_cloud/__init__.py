@@ -39,6 +39,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         stations_info = {}
         stations_reports = {}
         stations_component = {}
+        stations_layout_power = {}
         stations_devices = {}
         now = datetime.now()
         records = stations_data.get("data", {}).get("records", [])
@@ -78,6 +79,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     except Exception as component_exc:
                         _LOGGER.debug("Failed to fetch component data for station %s: %s", station_id, component_exc)
                         stations_component[station_id] = {}
+
+                    # Fetch layout power data for CT channels
+                    try:
+                        current_date = now.strftime("%Y-%m-%d")
+                        layout_power_data = await client.async_get_layout_power(component_id=station_id, date=current_date, is_v2=True)
+                        stations_layout_power[station_id] = layout_power_data
+                        _LOGGER.debug("Layout power data for station %s: %s", station_id, layout_power_data)
+                    except Exception as layout_exc:
+                        _LOGGER.debug("Failed to fetch layout power data for station %s: %s", station_id, layout_exc)
+                        stations_layout_power[station_id] = {}
                     
                     # Fetch device page data for device online state
                     try:
@@ -212,6 +223,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "stations_info": stations_info,
             "stations_reports": stations_reports,
             "stations_component": stations_component,
+            "stations_layout_power": stations_layout_power,
             "stations_devices": stations_devices,
         }
 

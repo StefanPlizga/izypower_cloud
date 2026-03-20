@@ -1002,7 +1002,7 @@ def _create_battery_link_sensors(coordinator, station_id: int, station_name: str
 
 async def _create_pv_sensors(client, coordinator, station_id: int, station_name: str, 
                              device_by_sn: dict, entities: list):
-    """Create PV sensors."""
+    """Create PV sensors and CT sensors discovered from latest layoutPower extra node."""
     try:
         current_date = datetime.now().strftime("%Y-%m-%d")
         component_data = await client.async_get_component(
@@ -1031,9 +1031,44 @@ async def _create_pv_sensors(client, coordinator, station_id: int, station_name:
                 entities.append(DevicePVSensor(coordinator, station_id, station_name, device_record, pv_data))
             else:
                 _LOGGER.debug("No device found for PV data with SN: %s, pv: %s", pv_sn, pv_name)
-    
+
     except Exception as exc:
         _LOGGER.warning("Failed to fetch component data for station %s (ID: %s): %s", station_name, station_id, exc)
+
+    # Create CT sensors (ct*) from latest layout power extra node.
+    coordinator_data = coordinator.data or {}
+    station_layout = coordinator_data.get("stations_layout_power", {}).get(station_id, {})
+    layout_rows = station_layout.get("data", {}).get("data", [])
+
+    latest_extra = []
+    for row in reversed(layout_rows):
+        extra = row.get("extra", [])
+        if isinstance(extra, list) and extra:
+            latest_extra = extra
+            break
+
+    created_ct_keys = set()
+    for item in latest_extra:
+        item_pv = (item.get("pv") or "").lower()
+        if not item_pv.startswith("ct"):
+            continue
+
+        item_sn = item.get("deviceSn") or item.get("deviceSN")
+        if not item_sn:
+            continue
+
+        device_record = device_by_sn.get(item_sn)
+        if not device_record:
+            _LOGGER.debug("No device found for CT data with SN: %s, pv: %s", item_sn, item_pv)
+            continue
+
+        ct_key = (item_sn, item_pv)
+        if ct_key in created_ct_keys:
+            continue
+
+        created_ct_keys.add(ct_key)
+        entities.append(DeviceCTPowerSensor(coordinator, station_id, station_name, device_record, item_pv))
+        _LOGGER.debug("Creating CT sensor %s for device %s (SN: %s)", item_pv.upper(), device_record.get("deviceName", "Unknown"), item_sn)
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -1243,6 +1278,53 @@ class DevicePVSensor(DeviceBaseSensor):
         pv_data = self._get_pv_data()
         pv_power = pv_data.get("pvPower")
         return 0 if pv_power is None else pv_power
+
+
+class DeviceCTPowerSensor(DeviceBaseSensor):
+    """Sensor for CT channel power (ct2/ct3) from layoutPower endpoint."""
+
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = "W"
+    _attr_has_entity_name = False
+    _attr_entity_category = None
+
+    def __init__(self, coordinator, station_id: int, station_name: str, device_record: dict, ct_name: str):
+        """Initialize the CT power sensor."""
+        super().__init__(coordinator, station_id, station_name, device_record)
+        self._device_sn = device_record.get("sn") or device_record.get("serialNumber")
+        self._ct_name = (ct_name or "").lower()
+        self._ct_name_upper = self._ct_name.upper()
+        self._attr_unique_id = f"{ENTITY_ID_PREFIX}_device_{self._device_id}_{self._ct_name}"
+        self._attr_name = f"{DISPLAY_NAME_PREFIX} {self._station_name} ({self._station_id}) - {self._device_name} {self._ct_name_upper}"
+
+    def _get_latest_layout_extra(self) -> list:
+        """Return the latest available extra node from layout power data."""
+        coordinator_data = self.coordinator.data or {}
+        stations_layout_power = coordinator_data.get("stations_layout_power", {})
+        station_layout = stations_layout_power.get(self._station_id, {})
+        data_rows = station_layout.get("data", {}).get("data", [])
+
+        for row in reversed(data_rows):
+            extra = row.get("extra", [])
+            if isinstance(extra, list) and extra:
+                return extra
+        return []
+
+    @property
+    def native_value(self):
+        """Return CT power from the latest extra node for matching device serial."""
+        if not self._device_sn:
+            return None
+
+        latest_extra = self._get_latest_layout_extra()
+        for item in latest_extra:
+            item_pv = (item.get("pv") or "").lower()
+            item_sn = item.get("deviceSn") or item.get("deviceSN")
+            if item_pv == self._ct_name and item_sn == self._device_sn:
+                return item.get("dataVal")
+
+        return None
 
 
 

@@ -9,6 +9,7 @@ DEVICE_PAGE_URL_TEMPLATE = "http://application.izypowercloud.fr/photo_voltaic/ap
 COMPONENT_URL_TEMPLATE = "http://application.izypowercloud.fr/photo_voltaic/api/component/{component_id}?searchTime={date}"
 STATION_INFO_URL_TEMPLATE = "http://application.izypowercloud.fr/photo_voltaic/api/v3/powerStations/info/{component_id}"
 REPORT_URL_TEMPLATE = "http://application.izypowercloud.fr/photo_voltaic/api/report/v2/powerStations/data/{component_id}?timeType={time_type}&dataFlag=energy&searchTime={date}"
+LAYOUT_POWER_URL_TEMPLATE = "http://application.izypowercloud.fr/photo_voltaic/api/report/layoutPower/{component_id}?searchTime={date}&isV2={is_v2}"
 DEVICE_WIFI_URL_TEMPLATE = "http://application.izypowercloud.fr/photo_voltaic/api/v3/device/wifi/{serial_number}"
 BATTERY_LINKS_URL_TEMPLATE = "http://application.izypowercloud.fr/photo_voltaic/izy/v2/battery/{serial_number}"
 DEVICE_TEMP_URL_TEMPLATE = "http://application.izypowercloud.fr/photo_voltaic/api/report/device/data/{serial_number}?searchTime={date}&timeType=day&dataFlag=temp"

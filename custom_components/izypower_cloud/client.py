@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from .const import LOGIN_URL, STATIONS_URL, DEVICE_PAGE_URL_TEMPLATE, COMPONENT_URL_TEMPLATE, STATION_INFO_URL_TEMPLATE, REPORT_URL_TEMPLATE, DEVICE_WIFI_URL_TEMPLATE, BATTERY_LINKS_URL_TEMPLATE, DEVICE_TEMP_URL_TEMPLATE, DEVICE_UPGRADE_URL_TEMPLATE, METER_BASE_INFO_URL_TEMPLATE, METER_CONTROL_URL_TEMPLATE, BATTERY_LED_URL_TEMPLATE, BATTERY_CMD_URL_TEMPLATE, BATTERY_TOGGLE_OFFGRID_URL_TEMPLATE, BATTERY_OFFGRID_URL_TEMPLATE, BATTERY_TOGGLE_FULLCHARGE_DAYS_URL_TEMPLATE, BATTERY_FULLCHARGE_DAYS_URL_TEMPLATE, BATTERY_FULLCHARGE_TIME_URL_TEMPLATE, BATTERY_MIN_SOC_URL_TEMPLATE, BATTERY_POWER_URL_TEMPLATE, BATTERY_MODE_URL_TEMPLATE, BATTERY_MANUAL_MODE_VALUE_URL_TEMPLATE, TOKEN_HEADER, APP_PLATFORM_HEADER
+from .const import LOGIN_URL, STATIONS_URL, DEVICE_PAGE_URL_TEMPLATE, COMPONENT_URL_TEMPLATE, STATION_INFO_URL_TEMPLATE, REPORT_URL_TEMPLATE, LAYOUT_POWER_URL_TEMPLATE, DEVICE_WIFI_URL_TEMPLATE, BATTERY_LINKS_URL_TEMPLATE, DEVICE_TEMP_URL_TEMPLATE, DEVICE_UPGRADE_URL_TEMPLATE, METER_BASE_INFO_URL_TEMPLATE, METER_CONTROL_URL_TEMPLATE, BATTERY_LED_URL_TEMPLATE, BATTERY_CMD_URL_TEMPLATE, BATTERY_TOGGLE_OFFGRID_URL_TEMPLATE, BATTERY_OFFGRID_URL_TEMPLATE, BATTERY_TOGGLE_FULLCHARGE_DAYS_URL_TEMPLATE, BATTERY_FULLCHARGE_DAYS_URL_TEMPLATE, BATTERY_FULLCHARGE_TIME_URL_TEMPLATE, BATTERY_MIN_SOC_URL_TEMPLATE, BATTERY_POWER_URL_TEMPLATE, BATTERY_MODE_URL_TEMPLATE, BATTERY_MANUAL_MODE_VALUE_URL_TEMPLATE, TOKEN_HEADER, APP_PLATFORM_HEADER
 import logging
 
 _LOGGER = logging.getLogger(__name__)
@@ -255,6 +255,59 @@ class IzyClient:
                     raise
             except Exception as exc:
                 _LOGGER.debug("Error fetching component %s (attempt %s/%s): %s", component_id, attempt, max_attempts, exc)
+                if attempt == max_attempts:
+                    raise
+
+            if attempt < max_attempts:
+                jitter = random.random() * 0.5
+                wait = backoff_base * (2 ** (attempt - 1)) + jitter
+                await asyncio.sleep(wait)
+
+    async def async_get_layout_power(self, component_id: int, date: str, is_v2: bool = True) -> Dict[str, Any]:
+        """Fetch layout power data used for CT channels."""
+        max_attempts = 3
+        backoff_base = 1.0
+
+        for attempt in range(1, max_attempts + 1):
+            try:
+                if not self._token_is_valid():
+                    await self.async_login()
+
+                session = async_get_clientsession(self.hass)
+                url = LAYOUT_POWER_URL_TEMPLATE.format(component_id=component_id, date=date, is_v2=str(is_v2).lower())
+                headers = {TOKEN_HEADER: self._token, "Accept-Language": self._get_language_header(), "app-platform": APP_PLATFORM_HEADER}
+                async with session.get(url, headers=headers, timeout=20) as resp:
+                    text = await resp.text()
+                    _LOGGER.debug("Layout power response (status %s): %s", resp.status, text)
+
+                    if resp.status == 401:
+                        _LOGGER.debug("Unauthorized (401) when fetching layout power; will re-login (attempt %s/%s)", attempt, max_attempts)
+                        await self.async_login()
+                        raise Exception("Unauthorized")
+
+                    if 500 <= resp.status < 600:
+                        _LOGGER.debug("Server error %s when fetching layout power (attempt %s/%s)", resp.status, attempt, max_attempts)
+                        raise ServerUnavailableError(f"Server returned {resp.status}")
+
+                    if resp.status != 200:
+                        _LOGGER.error("Failed fetching layout power %s: status %s body %s", component_id, resp.status, text)
+                        raise Exception(f"HTTP {resp.status}")
+
+                    try:
+                        return json.loads(text)
+                    except Exception:
+                        _LOGGER.error("Invalid JSON from layout power: %s", text)
+                        raise
+
+            except asyncio.TimeoutError:
+                _LOGGER.debug("Request timed out fetching layout power %s (attempt %s/%s)", component_id, attempt, max_attempts)
+                if attempt == max_attempts:
+                    raise ServerUnavailableError("Request timed out after all retries")
+            except ServerUnavailableError:
+                if attempt == max_attempts:
+                    raise
+            except Exception as exc:
+                _LOGGER.debug("Error fetching layout power %s (attempt %s/%s): %s", component_id, attempt, max_attempts, exc)
                 if attempt == max_attempts:
                     raise
 
