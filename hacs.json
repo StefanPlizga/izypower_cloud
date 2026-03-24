@@ -3,6 +3,5 @@
   "homeassistant": "2026.1.0",
   "render_readme": true,
   "zip_release": true,
-  "filename": "izypower_cloud-{version}.zip",
   "country": ["FR"]
 }
