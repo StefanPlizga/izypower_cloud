@@ -91,6 +91,31 @@ class StationCalculatedEnergySensor(StationBaseSensor):
         return max(0, result)
 
 
+class StationReportEnergySensor(StationBaseSensor):
+    """Station energy sensor reading directly from report data (stations_reports)."""
+
+    _attr_device_class = SensorDeviceClass.ENERGY
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+
+    def __init__(self, coordinator, station_id: int, station_name: str,
+                 time_type: str, field_name: str, translation_key: str):
+        """Initialize the report energy sensor."""
+        super().__init__(coordinator, station_id, station_name)
+        self._time_type = time_type
+        self._field_name = field_name
+        self._attr_unique_id = f"{station_id}_{translation_key}"
+        self._attr_translation_key = translation_key
+
+    @property
+    def native_value(self):
+        """Return the energy value from report data."""
+        coordinator_data = self.coordinator.data or {}
+        report = coordinator_data.get("stations_reports", {}).get(self._station_id, {}).get(self._time_type, {})
+        value = report.get(self._field_name)
+        return value if value is not None else 0
+
+
 class StationRateSensor(StationBaseSensor):
     """Base class for station rate sensors."""
     
@@ -842,41 +867,37 @@ def _create_station_sensors(coordinator, station_id: int, station_name: str, sta
     entities.append(StationEnergySensor(coordinator, station_id, station_name, "production", "year", "production_year"))
     entities.append(StationEnergySensor(coordinator, station_id, station_name, "production", "all", "production_total"))
     
-    # Grid energy sensors
-    entities.append(StationEnergySensor(coordinator, station_id, station_name, "grid", "day2", "grid_day_import"))
-    entities.append(StationEnergySensor(coordinator, station_id, station_name, "grid", "day1", "grid_day_export"))
-    entities.append(StationEnergySensor(coordinator, station_id, station_name, "grid", "month2", "grid_month_import"))
-    entities.append(StationEnergySensor(coordinator, station_id, station_name, "grid", "month1", "grid_month_export"))
-    entities.append(StationEnergySensor(coordinator, station_id, station_name, "grid", "year2", "grid_year_import"))
-    entities.append(StationEnergySensor(coordinator, station_id, station_name, "grid", "year1", "grid_year_export"))
-    entities.append(StationEnergySensor(coordinator, station_id, station_name, "grid", "all2", "grid_total_import"))
-    entities.append(StationEnergySensor(coordinator, station_id, station_name, "grid", "all1", "grid_total_export"))
-    
-    # Consumption energy sensors
-    entities.append(StationEnergySensor(coordinator, station_id, station_name, "consumption", "day", "consumption_day"))
-    entities.append(StationEnergySensor(coordinator, station_id, station_name, "consumption", "month", "consumption_month"))
-    entities.append(StationEnergySensor(coordinator, station_id, station_name, "consumption", "year", "consumption_year"))
-    entities.append(StationEnergySensor(coordinator, station_id, station_name, "consumption", "all", "consumption_total"))
-    
-    # Consumption from PV sensors (calculated)
-    entities.append(StationCalculatedEnergySensor(coordinator, station_id, station_name, "day", "consumption_from_pv_day", 
-        {"consumption": "day", "battery": "day_out", "grid": "day2"}))
-    entities.append(StationCalculatedEnergySensor(coordinator, station_id, station_name, "month", "consumption_from_pv_month", 
-        {"consumption": "month", "battery": "month_out", "grid": "month2"}))
-    entities.append(StationCalculatedEnergySensor(coordinator, station_id, station_name, "year", "consumption_from_pv_year", 
-        {"consumption": "year", "battery": "year_out", "grid": "year2"}))
-    entities.append(StationCalculatedEnergySensor(coordinator, station_id, station_name, "total", "consumption_from_pv_total", 
-        {"consumption": "all", "battery": "total_out", "grid": "total2"}))
-    
-    # Battery energy sensors
-    entities.append(StationEnergySensor(coordinator, station_id, station_name, "battery", "day_in", "battery_day_charge"))
-    entities.append(StationEnergySensor(coordinator, station_id, station_name, "battery", "day_out", "battery_day_discharge"))
-    entities.append(StationEnergySensor(coordinator, station_id, station_name, "battery", "month_in", "battery_month_charge"))
-    entities.append(StationEnergySensor(coordinator, station_id, station_name, "battery", "month_out", "battery_month_discharge"))
-    entities.append(StationEnergySensor(coordinator, station_id, station_name, "battery", "year_in", "battery_year_charge"))
-    entities.append(StationEnergySensor(coordinator, station_id, station_name, "battery", "year_out", "battery_year_discharge"))
-    entities.append(StationEnergySensor(coordinator, station_id, station_name, "battery", "all_in", "battery_total_charge"))
-    entities.append(StationEnergySensor(coordinator, station_id, station_name, "battery", "all_out", "battery_total_discharge"))
+    # Grid energy sensors (from report data)
+    entities.append(StationReportEnergySensor(coordinator, station_id, station_name, "day", "meter_energy_p", "grid_day_import"))
+    entities.append(StationReportEnergySensor(coordinator, station_id, station_name, "day", "meter_energy_n", "grid_day_export"))
+    entities.append(StationReportEnergySensor(coordinator, station_id, station_name, "month", "meter_energy_p", "grid_month_import"))
+    entities.append(StationReportEnergySensor(coordinator, station_id, station_name, "month", "meter_energy_n", "grid_month_export"))
+    entities.append(StationReportEnergySensor(coordinator, station_id, station_name, "year", "meter_energy_p", "grid_year_import"))
+    entities.append(StationReportEnergySensor(coordinator, station_id, station_name, "year", "meter_energy_n", "grid_year_export"))
+    entities.append(StationReportEnergySensor(coordinator, station_id, station_name, "all", "meter_energy_p", "grid_total_import"))
+    entities.append(StationReportEnergySensor(coordinator, station_id, station_name, "all", "meter_energy_n", "grid_total_export"))
+
+    # Total consumption energy sensors (from report data)
+    entities.append(StationReportEnergySensor(coordinator, station_id, station_name, "day", "total_consumption", "consumption_day"))
+    entities.append(StationReportEnergySensor(coordinator, station_id, station_name, "month", "total_consumption", "consumption_month"))
+    entities.append(StationReportEnergySensor(coordinator, station_id, station_name, "year", "total_consumption", "consumption_year"))
+    entities.append(StationReportEnergySensor(coordinator, station_id, station_name, "all", "total_consumption", "consumption_total"))
+
+    # Consumption from PV sensors (from report data)
+    entities.append(StationReportEnergySensor(coordinator, station_id, station_name, "day", "consumption", "consumption_from_pv_day"))
+    entities.append(StationReportEnergySensor(coordinator, station_id, station_name, "month", "consumption", "consumption_from_pv_month"))
+    entities.append(StationReportEnergySensor(coordinator, station_id, station_name, "year", "consumption", "consumption_from_pv_year"))
+    entities.append(StationReportEnergySensor(coordinator, station_id, station_name, "all", "consumption", "consumption_from_pv_total"))
+
+    # Battery energy sensors (from report data)
+    entities.append(StationReportEnergySensor(coordinator, station_id, station_name, "day", "storage_in", "battery_day_charge"))
+    entities.append(StationReportEnergySensor(coordinator, station_id, station_name, "day", "storage_out", "battery_day_discharge"))
+    entities.append(StationReportEnergySensor(coordinator, station_id, station_name, "month", "storage_in", "battery_month_charge"))
+    entities.append(StationReportEnergySensor(coordinator, station_id, station_name, "month", "storage_out", "battery_month_discharge"))
+    entities.append(StationReportEnergySensor(coordinator, station_id, station_name, "year", "storage_in", "battery_year_charge"))
+    entities.append(StationReportEnergySensor(coordinator, station_id, station_name, "year", "storage_out", "battery_year_discharge"))
+    entities.append(StationReportEnergySensor(coordinator, station_id, station_name, "all", "storage_in", "battery_total_charge"))
+    entities.append(StationReportEnergySensor(coordinator, station_id, station_name, "all", "storage_out", "battery_total_discharge"))
     
     # Create rate sensors from report data for each time type
     for time_type in ["all", "day", "month", "year"]:
