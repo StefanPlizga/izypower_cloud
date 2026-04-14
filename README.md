@@ -86,7 +86,7 @@ Merci à Khirale, MarcoCMG, Wellgo et Zyos67 pour leurs tests et retours.
 - Import Réseau : Jour, Mois, Année, Total
 - Export Réseau : Jour, Mois, Année, Total
 - Consommation : Jour, Mois, Année, Total
-- Consommation depuis PV : Jour, Mois, Année, Total (calculé)
+- Consommation depuis PV : Jour, Mois, Année, Total
 - Charge Batterie : Jour, Mois, Année, Total
 - Décharge Batterie : Jour, Mois, Année, Total
 
@@ -245,7 +245,6 @@ Pour les appareils compteur intelligent, les contrôles suivants sont disponible
 
 - Tous les capteurs d'énergie sont compatibles avec le tableau de bord Énergie de Home Assistant
 - Les capteurs de taux analysent automatiquement les valeurs de pourcentage de l'API
-- Les capteurs calculés (comme Consommation depuis PV) garantissent des valeurs non négatives
 - Les informations Wi-Fi ne sont disponibles que pour les appareils avec numéros de série
 - Le capteur d'état de charge moyen n'apparaît que pour les appareils avec batterie intégrée
 - Le capteur de mode cluster n'apparaît que pour les appareils en configuration multi-onduleur

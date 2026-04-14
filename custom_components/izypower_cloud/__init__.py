@@ -6,9 +6,13 @@ import logging
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, DEFAULT_SCAN_INTERVAL
 from .client import IzyClient, ServerUnavailableError
+from .statistics import (
+    async_insert_hourly_statistics_from_report,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -23,6 +27,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.info("Setting up Izypower Cloud integration with refresh period: %s minutes", refresh_period)
 
     client = IzyClient(hass, username, password)
+    last_hourly_stats_slot_by_station: dict[int, str] = {}
 
     async def async_update_data():
         """Fetch all stations and their detailed info."""
@@ -42,6 +47,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         stations_layout_power = {}
         stations_devices = {}
         now = datetime.now()
+        now_local = dt_util.now().replace(second=0, microsecond=0)
+        can_run_hourly_import = now_local.minute >= 10
+        prev_hour_local = now_local.replace(minute=0) - timedelta(hours=1)
+        prev_hour_slot_key = prev_hour_local.strftime("%Y-%m-%d %H")
+        prev_hour_slot_utc = dt_util.as_utc(prev_hour_local)
+        if not can_run_hourly_import:
+            _LOGGER.debug(
+                "Skipping hourly statistics import before H+10 (now_local=%s, minute=%s)",
+                now_local.isoformat(),
+                now_local.minute,
+            )
         records = stations_data.get("data", {}).get("records", [])
         for record in records:
             station_id = record.get("stationsId")
@@ -51,24 +67,59 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     stations_info[station_id] = station_info
                     _LOGGER.debug("Fetched info for station %s", station_id)
                     
-                    # Fetch report data for all time types with appropriate date format
+                    # Fetch report data for all time types with dates aligned to the
+                    # hour slot being populated.
                     stations_reports[station_id] = {}
                     for time_type in ["all", "day", "month", "year"]:
                         try:
-                            # Format date based on time_type
-                            if time_type in ["all", "day"]:
-                                search_time = now.strftime("%Y-%m-%d")
+                            # Use the previous hour's period so boundary hours use the
+                            # correct day/month/year payloads.
+                            if time_type == "day":
+                                search_time = prev_hour_local.strftime("%Y-%m-%d")
+                            elif time_type == "all":
+                                search_time = prev_hour_local.strftime("%Y-%m-%d")
                             elif time_type == "month":
-                                search_time = now.strftime("%Y-%m")
+                                search_time = prev_hour_local.strftime("%Y-%m")
                             else:  # year
-                                search_time = now.strftime("%Y")
+                                search_time = prev_hour_local.strftime("%Y")
                             
                             report_data = await client.async_get_report(component_id=station_id, date=search_time, time_type=time_type)
                             stations_reports[station_id][time_type] = report_data
-                            _LOGGER.debug("Report data for station %s (timeType=%s, searchTime=%s): %s", station_id, time_type, search_time, report_data)
+                            _LOGGER.info(
+                                "Report data for station %s (timeType=%s, searchTime=%s): %s",
+                                station_id,
+                                time_type,
+                                search_time,
+                                report_data,
+                            )
+
                         except Exception as report_exc:
                             _LOGGER.debug("Failed to fetch report for station %s (timeType=%s): %s", station_id, time_type, report_exc)
                             stations_reports[station_id][time_type] = {}
+
+                    if can_run_hourly_import and last_hourly_stats_slot_by_station.get(station_id) != prev_hour_slot_key:
+                        station_name = record.get("stationName", str(station_id))
+                        _LOGGER.info(
+                            "Calling async_insert_hourly_statistics_from_report: station=%s station_name=%s slot=%s report_data_by_period=%s",
+                            station_id,
+                            station_name,
+                            prev_hour_slot_utc.isoformat(),
+                            stations_reports[station_id],
+                        )
+                        inserted = await async_insert_hourly_statistics_from_report(
+                            hass,
+                            station_id,
+                            station_name,
+                            stations_reports[station_id],
+                            prev_hour_slot_utc,
+                        )
+                        if inserted:
+                            last_hourly_stats_slot_by_station[station_id] = prev_hour_slot_key
+                            _LOGGER.info(
+                                "Hourly statistics populated from coordinator report for station %s slot %s",
+                                station_id,
+                                prev_hour_slot_key,
+                            )
                     
                     # Fetch component data for PV power values
                     try:
@@ -245,6 +296,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     }
 
     await hass.config_entries.async_forward_entry_setups(entry, ["sensor", "switch", "number", "button", "select"])
+
+    _LOGGER.info("Hourly statistics source is coordinator report polling (first successful run each hour)")
 
     # Register options update listener
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))

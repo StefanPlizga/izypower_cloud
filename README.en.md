@@ -84,7 +84,7 @@ Thanks to Khirale, MarcoCMG, Wellgo and Zyos67 for testing and feedback.
 - Grid Import: Day, Month, Year, Total
 - Grid Export: Day, Month, Year, Total
 - Consumption: Day, Month, Year, Total
-- Consumption from PV: Day, Month, Year, Total (calculated)
+- Consumption from PV: Day, Month, Year, Total
 - Battery Charge: Day, Month, Year, Total
 - Battery Discharge: Day, Month, Year, Total
 
@@ -242,7 +242,6 @@ For smart meter devices, the following controls are available:
 
 - All energy sensors are compatible with Home Assistant's Energy dashboard
 - Rate sensors automatically parse percentage values from the API
-- Calculated sensors (like Consumption from PV) ensure non-negative values
 - WiFi information only available for devices with serial numbers
 - Average state of charge sensor only appears for devices with integrated battery
 - Cluster mode sensor only appears for devices in multi-inverter configuration
