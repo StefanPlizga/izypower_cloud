@@ -323,6 +323,16 @@ def _insert_stats_slot(
                     delta = 0.0
                 elif value >= prev_state:
                     delta = value - prev_state
+                elif unit == "kWh":
+                    # kWh values must only increase within a period.
+                    # A lower value is a bad reading — skip and wait for the next valid one.
+                    _LOGGER.debug(
+                        "Skipping stat %s: value %.3f < prev_state %.3f (bad reading)",
+                        statistic_id,
+                        value,
+                        prev_state,
+                    )
+                    continue
                 else:
                     # Source cumulative reset (period rollover): start from current value.
                     delta = value
