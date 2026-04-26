@@ -130,7 +130,7 @@ class BatteryLEDButton(CoordinatorEntity, ButtonEntity):
                 serial_number=self._device_sn,
                 value=self._led_value,
             )
-            _LOGGER.info(
+            _LOGGER.debug(
                 "Battery LED %s for %s (ID: %s, SN: %s)",
                 "turned on" if self._led_value == 1 else "turned off",
                 self._device_name,

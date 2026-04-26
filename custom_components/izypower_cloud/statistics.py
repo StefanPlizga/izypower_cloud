@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from homeassistant.components.recorder import get_instance
@@ -224,6 +224,49 @@ def _resolve_existing_statistic_id(
     return default_id
 
 
+def _period_has_reset(last_start: Any, slot_utc: datetime, period: str) -> bool:
+    """Return True if the API period has rolled over between last_start and slot_utc."""
+    last_start_dt = _coerce_datetime(last_start)
+    if last_start_dt is None:
+        return False
+
+    # Strip timezone info so date comparisons work regardless of tzinfo presence.
+    last = last_start_dt.replace(tzinfo=None)
+    current = slot_utc.replace(tzinfo=None)
+    if period == "day":
+        return last.date() != current.date()
+    if period == "month":
+        return (last.year, last.month) != (current.year, current.month)
+    if period == "year":
+        return last.year != current.year
+    # "all" never resets
+    return False
+
+
+def _coerce_datetime(raw: Any) -> datetime | None:
+    """Normalize recorder datetime-like values to datetime."""
+    if isinstance(raw, datetime):
+        return raw
+
+    if isinstance(raw, (int, float)):
+        try:
+            return datetime.fromtimestamp(raw, tz=timezone.utc)
+        except (OSError, OverflowError, ValueError):
+            return None
+
+    if isinstance(raw, str):
+        value = raw.strip()
+        if not value:
+            return None
+        try:
+            # Accept both explicit offsets and trailing Z.
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+
+    return None
+
+
 def _parse_value(raw: Any) -> float | None:
     """Parse a raw API value to float."""
     if raw is None:
@@ -343,8 +386,21 @@ def _insert_stats_slot(
                 previous_states[statistic_id] = value
                 new_sum = running_sums.get(statistic_id, 0.0) + delta
                 running_sums[statistic_id] = new_sum
+                _LOGGER.debug(
+                    "Stat %s: prev_state=%.3f, value=%.3f, delta=%.3f, new_sum=%.3f",
+                    statistic_id,
+                    prev_state if prev_state is not None else 0.0,
+                    value,
+                    delta,
+                    new_sum,
+                )
                 stat_data = StatisticData(start=slot_utc, state=value, sum=new_sum)
             else:
+                _LOGGER.debug(
+                    "Stat %s: mean=%.3f",
+                    statistic_id,
+                    value,
+                )
                 stat_data = StatisticData(start=slot_utc, mean=value)
 
             async_add_external_statistics(hass, metadata, [stat_data])
@@ -430,12 +486,22 @@ async def async_insert_hourly_statistics_from_report(
                 row = last_stats[statistic_id][0]
                 raw_sum = row.get("sum")
                 raw_state = row.get("state")
+                last_start = row.get("start")
                 if raw_sum is not None:
                     running_sums[statistic_id] = float(raw_sum)
                 else:
                     running_sums[statistic_id] = 0.0
-                if raw_state is not None:
+                # If the API period has rolled over since the last stat, treat
+                # prev_state as 0 so delta = full new-period value rather than
+                # being skipped as a "bad reading" or incorrectly subtracted.
+                if last_start and _period_has_reset(last_start, slot_utc, period):
+                    previous_states[statistic_id] = 0.0
+                elif raw_state is not None:
                     previous_states[statistic_id] = float(raw_state)
+                else:
+                    # State missing but stat exists — treat last known state as 0
+                    # so the skip-on-decrease guard can still fire next cycle.
+                    previous_states[statistic_id] = 0.0
             else:
                 running_sums[statistic_id] = 0.0
 

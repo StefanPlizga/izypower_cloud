@@ -8,7 +8,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, ENTITY_ID_PREFIX
+from .const import DOMAIN, ENTITY_ID_PREFIX, DEBUG_LOG_REQUESTS
 from .client import ServerUnavailableError
 
 _LOGGER = logging.getLogger(__name__)
@@ -63,7 +63,7 @@ async def async_setup_entry(
                     cluster_mode = int(cluster_mode_str) if cluster_mode_str else 0
                     
                     # Off-grid select is available for all batteries with battery_cmd data
-                    _LOGGER.info("✓✓✓ CREATING BatteryOffgridModeSelect for device %s (ID: %s, SN: %s)", device_name, device_id, device_sn)
+                    _LOGGER.debug("CREATING BatteryOffgridModeSelect for device %s (ID: %s, SN: %s)", device_name, device_id, device_sn)
                     entities.append(
                         BatteryOffgridModeSelect(
                             coordinator,
@@ -77,7 +77,7 @@ async def async_setup_entry(
                     )
                     
                     # Calibration time select
-                    _LOGGER.info("✓✓✓ CREATING BatteryCalibrationTimeSelect for device %s (ID: %s, SN: %s)", device_name, device_id, device_sn)
+                    _LOGGER.debug("CREATING BatteryCalibrationTimeSelect for device %s (ID: %s, SN: %s)", device_name, device_id, device_sn)
                     entities.append(
                         BatteryCalibrationTimeSelect(
                             coordinator,
@@ -93,7 +93,7 @@ async def async_setup_entry(
                     if cluster_mode in (1000, 1002):
                         _LOGGER.debug("Creating control mode select for battery device: %s (ID: %s, cluster_mode: %s)", 
                                      device_name, device_id, cluster_mode)
-                        _LOGGER.info("✓✓✓ CREATING BatteryControlModeSelect for device %s (ID: %s, SN: %s)", device_name, device_id, device_sn)
+                        _LOGGER.debug("CREATING BatteryControlModeSelect for device %s (ID: %s, SN: %s)", device_name, device_id, device_sn)
                         entities.append(
                             BatteryControlModeSelect(
                                 coordinator,
@@ -107,7 +107,7 @@ async def async_setup_entry(
                         )
                         
                         # Battery manual mode select - only for master (1000) or standalone (1002) mode
-                        _LOGGER.info("✓✓✓ CREATING BatteryManualModeSelect for device %s (ID: %s, SN: %s)", device_name, device_id, device_sn)
+                        _LOGGER.debug("CREATING BatteryManualModeSelect for device %s (ID: %s, SN: %s)", device_name, device_id, device_sn)
                         entities.append(
                             BatteryManualModeSelect(
                                 coordinator,
@@ -168,7 +168,7 @@ class BatteryControlModeSelect(CoordinatorEntity, SelectEntity):
         self._attr_unique_id = f"{device_id}_battery_control_mode"
         self._attr_translation_key = "battery_control_mode"
         
-        _LOGGER.info("✓✓✓ BatteryControlModeSelect INITIALIZED for device %s (ID: %s, SN: %s)", device_name, device_id, device_sn)
+        _LOGGER.debug("BatteryControlModeSelect INITIALIZED for device %s (ID: %s, SN: %s)", device_name, device_id, device_sn)
 
     def _get_station_devices(self) -> dict:
         """Return station-scoped coordinator data."""
@@ -187,8 +187,8 @@ class BatteryControlModeSelect(CoordinatorEntity, SelectEntity):
         device_cmd = self._get_battery_cmd()
         has_meter = device_cmd.get("data", {}).get("hasMeter")
         if has_meter is not None:
-            _LOGGER.info(
-                "✓✓✓ [ControlMode] Device %s - hasMeter from battery_cmd: %s",
+            _LOGGER.debug(
+                "Device %s - hasMeter from battery_cmd: %s",
                 self._device_id,
                 has_meter,
             )
@@ -197,16 +197,16 @@ class BatteryControlModeSelect(CoordinatorEntity, SelectEntity):
         station_devices = self._get_station_devices()
         meter_base_info = station_devices.get("meter_base_info", {})
         if any(value for value in meter_base_info.values()):
-            _LOGGER.info(
-                "✓✓✓ [ControlMode] Device %s - inferred smart meter from meter_base_info",
+            _LOGGER.debug(
+                "Device %s - inferred smart meter from meter_base_info",
                 self._device_id,
             )
             return True
 
         device_records = station_devices.get("data", {}).get("records", [])
         has_meter_device = any(device_record.get("deviceType") == "meter" for device_record in device_records)
-        _LOGGER.info(
-            "✓✓✓ [ControlMode] Device %s - inferred smart meter from device page: %s",
+        _LOGGER.debug(
+            "Device %s - inferred smart meter from device page: %s",
             self._device_id,
             has_meter_device,
         )
@@ -229,21 +229,22 @@ class BatteryControlModeSelect(CoordinatorEntity, SelectEntity):
     @property
     def current_option(self) -> str | None:
         """Return the current control mode."""
-        _LOGGER.info("✓✓✓ [ControlMode] current_option called for device %s", self._device_id)
+        _LOGGER.debug("current_option called for device %s", self._device_id)
         
         coordinator_data = self.coordinator.data or {}
         stations_devices = coordinator_data.get("stations_devices", {})
         
-        _LOGGER.info("✓✓✓ [ControlMode] Device %s - station_id in stations_devices: %s", self._device_id, self._station_id in stations_devices)
+        _LOGGER.debug("Device %s - station_id in stations_devices: %s", self._device_id, self._station_id in stations_devices)
         
         if self._station_id in stations_devices:
             device_cmd = self._get_battery_cmd()
             
-            _LOGGER.info("✓✓✓ [ControlMode] Device %s battery_cmd keys: %s", self._device_id, list(device_cmd.keys()) if device_cmd else None)
-            _LOGGER.info("✓✓✓ [ControlMode] Device %s full device_cmd: %s", self._device_id, device_cmd)
+            if DEBUG_LOG_REQUESTS:
+                _LOGGER.debug("Device %s battery_cmd keys: %s", self._device_id, list(device_cmd.keys()) if device_cmd else None)
+                _LOGGER.debug("Device %s full device_cmd: %s", self._device_id, device_cmd)
             
             ctr_mode = device_cmd.get("data", {}).get("mode", {}).get("ctr_mode")
-            _LOGGER.info("✓✓✓ [ControlMode] Device %s extracted ctr_mode: %s (type: %s)", self._device_id, ctr_mode, type(ctr_mode).__name__ if ctr_mode is not None else None)
+            _LOGGER.debug("Device %s extracted ctr_mode: %s (type: %s)", self._device_id, ctr_mode, type(ctr_mode).__name__ if ctr_mode is not None else None)
             
             return str(ctr_mode) if ctr_mode is not None else None
         
@@ -252,10 +253,10 @@ class BatteryControlModeSelect(CoordinatorEntity, SelectEntity):
     @property
     def available(self) -> bool:
         """Return whether the entity is available."""
-        _LOGGER.info("✓✓✓ [ControlMode] available called for device %s", self._device_id)
+        _LOGGER.debug("available called for device %s", self._device_id)
         
         if not self.coordinator.last_update_success:
-            _LOGGER.info("✓✓✓ [ControlMode] Device %s - coordinator.last_update_success is False", self._device_id)
+            _LOGGER.debug("Device %s - coordinator.last_update_success is False", self._device_id)
             return False
         
         coordinator_data = self.coordinator.data or {}
@@ -265,7 +266,7 @@ class BatteryControlModeSelect(CoordinatorEntity, SelectEntity):
             # Check if device exists in battery_cmd
             device_exists = bool(self._get_battery_cmd())
             
-            _LOGGER.info("✓✓✓ [ControlMode] Device %s - device_exists in battery_cmd: %s", self._device_id, device_exists)
+            _LOGGER.debug("Device %s - device_exists in battery_cmd: %s", self._device_id, device_exists)
             
             if device_exists:
                 # Get cluster_mode from connectInfoJson (DEVICE_PAGE_URL_TEMPLATE)
@@ -278,17 +279,17 @@ class BatteryControlModeSelect(CoordinatorEntity, SelectEntity):
                         current_cluster_mode = int(cluster_mode_str) if cluster_mode_str else 0
                         break
                 
-                _LOGGER.info("✓✓✓ [ControlMode] Device %s - current_cluster_mode: %s", self._device_id, current_cluster_mode)
+                _LOGGER.debug("Device %s - current_cluster_mode: %s", self._device_id, current_cluster_mode)
                 
                 # Only available for master (1000) or standalone (1002)
                 if current_cluster_mode not in (1000, 1002):
-                    _LOGGER.info("✓✓✓ [ControlMode] Device %s - UNAVAILABLE due to cluster_mode %s", self._device_id, current_cluster_mode)
+                    _LOGGER.debug("Device %s - UNAVAILABLE due to cluster_mode %s", self._device_id, current_cluster_mode)
                     return False
             
-            _LOGGER.info("✓✓✓ [ControlMode] Device %s - returning device_exists: %s", self._device_id, device_exists)
+            _LOGGER.debug("Device %s - returning device_exists: %s", self._device_id, device_exists)
             return device_exists
         
-        _LOGGER.info("✓✓✓ [ControlMode] Device %s - station not in stations_devices", self._device_id)
+        _LOGGER.debug("Device %s - station not in stations_devices", self._device_id)
         return False
     
     async def async_select_option(self, option: str) -> None:
@@ -356,7 +357,7 @@ class BatteryManualModeSelect(CoordinatorEntity, SelectEntity):
         self._attr_unique_id = f"{device_id}_battery_manual_mode"
         self._attr_translation_key = "battery_manual_mode"
         
-        _LOGGER.info("✓✓✓ BatteryManualModeSelect INITIALIZED for device %s (ID: %s, SN: %s)", device_name, device_id, device_sn)
+        _LOGGER.debug("BatteryManualModeSelect INITIALIZED for device %s (ID: %s, SN: %s)", device_name, device_id, device_sn)
     
     @property
     def device_info(self):
@@ -482,7 +483,7 @@ class BatteryOffgridModeSelect(CoordinatorEntity, SelectEntity):
         self._attr_unique_id = f"{device_id}_battery_offgrid_mode"
         self._attr_translation_key = "battery_offgrid_mode"
         
-        _LOGGER.info("✓✓✓ BatteryOffgridModeSelect INITIALIZED for device %s (ID: %s, SN: %s)", device_name, device_id, device_sn)
+        _LOGGER.debug("BatteryOffgridModeSelect INITIALIZED for device %s (ID: %s, SN: %s)", device_name, device_id, device_sn)
     
     @property
     def device_info(self):
@@ -582,7 +583,7 @@ class BatteryCalibrationTimeSelect(CoordinatorEntity, SelectEntity):
         self._attr_unique_id = f"{device_id}_battery_calibration_time"
         self._attr_translation_key = "battery_calibration_time"
         
-        _LOGGER.info("✓✓✓ BatteryCalibrationTimeSelect INITIALIZED for device %s (ID: %s, SN: %s)", device_name, device_id, device_sn)
+        _LOGGER.debug("BatteryCalibrationTimeSelect INITIALIZED for device %s (ID: %s, SN: %s)", device_name, device_id, device_sn)
     
     @staticmethod
     def _generate_time_options() -> list[str]:

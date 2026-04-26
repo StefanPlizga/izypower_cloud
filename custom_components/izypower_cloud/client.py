@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from .const import LOGIN_URL, STATIONS_URL, DEVICE_PAGE_URL_TEMPLATE, COMPONENT_URL_TEMPLATE, STATION_INFO_URL_TEMPLATE, REPORT_URL_TEMPLATE, LAYOUT_POWER_URL_TEMPLATE, DEVICE_WIFI_URL_TEMPLATE, BATTERY_LINKS_URL_TEMPLATE, DEVICE_TEMP_URL_TEMPLATE, DEVICE_UPGRADE_URL_TEMPLATE, METER_BASE_INFO_URL_TEMPLATE, METER_CONTROL_URL_TEMPLATE, BATTERY_LED_URL_TEMPLATE, BATTERY_CMD_URL_TEMPLATE, BATTERY_TOGGLE_OFFGRID_URL_TEMPLATE, BATTERY_OFFGRID_URL_TEMPLATE, BATTERY_TOGGLE_FULLCHARGE_DAYS_URL_TEMPLATE, BATTERY_FULLCHARGE_DAYS_URL_TEMPLATE, BATTERY_FULLCHARGE_TIME_URL_TEMPLATE, BATTERY_MIN_SOC_URL_TEMPLATE, BATTERY_POWER_URL_TEMPLATE, BATTERY_MODE_URL_TEMPLATE, BATTERY_MANUAL_MODE_VALUE_URL_TEMPLATE, TOKEN_HEADER, APP_PLATFORM_HEADER
+from .const import LOGIN_URL, STATIONS_URL, DEVICE_PAGE_URL_TEMPLATE, COMPONENT_URL_TEMPLATE, STATION_INFO_URL_TEMPLATE, REPORT_URL_TEMPLATE, LAYOUT_POWER_URL_TEMPLATE, DEVICE_WIFI_URL_TEMPLATE, BATTERY_LINKS_URL_TEMPLATE, DEVICE_TEMP_URL_TEMPLATE, DEVICE_UPGRADE_URL_TEMPLATE, METER_BASE_INFO_URL_TEMPLATE, METER_CONTROL_URL_TEMPLATE, BATTERY_LED_URL_TEMPLATE, BATTERY_CMD_URL_TEMPLATE, BATTERY_TOGGLE_OFFGRID_URL_TEMPLATE, BATTERY_OFFGRID_URL_TEMPLATE, BATTERY_TOGGLE_FULLCHARGE_DAYS_URL_TEMPLATE, BATTERY_FULLCHARGE_DAYS_URL_TEMPLATE, BATTERY_FULLCHARGE_TIME_URL_TEMPLATE, BATTERY_MIN_SOC_URL_TEMPLATE, BATTERY_POWER_URL_TEMPLATE, BATTERY_MODE_URL_TEMPLATE, BATTERY_MANUAL_MODE_VALUE_URL_TEMPLATE, TOKEN_HEADER, APP_PLATFORM_HEADER, DEBUG_LOG_REQUESTS
 import logging
 
 _LOGGER = logging.getLogger(__name__)
@@ -65,7 +65,10 @@ class IzyClient:
                 headers = {"Accept-Language": self._get_language_header(), "app-platform": APP_PLATFORM_HEADER}
                 async with session.post(LOGIN_URL, json=body, headers=headers, timeout=15) as resp:
                     text = await resp.text()
-                    _LOGGER.debug("Login response (status %s)", resp.status)
+                    if DEBUG_LOG_REQUESTS:
+                        _LOGGER.debug("Login response (status %s)", resp.status)
+                    else:
+                        _LOGGER.debug("Login response received for user %s", self._username)
                     try:
                         data = json.loads(text)
                     except Exception:
@@ -119,7 +122,10 @@ class IzyClient:
                 headers = {TOKEN_HEADER: self._token, "Accept-Language": self._get_language_header(), "app-platform": APP_PLATFORM_HEADER}
                 async with session.get(url, headers=headers, timeout=20) as resp:
                     text = await resp.text()
-                    _LOGGER.debug("Stations response (status %s): %s", resp.status, text)
+                    if DEBUG_LOG_REQUESTS:
+                        _LOGGER.debug("Stations response (status %s): %s", resp.status, text)
+                    else:
+                        _LOGGER.debug("Stations response received (page=%s, limit=%s)", page, limit)
 
                     if resp.status == 401:
                         _LOGGER.debug("Unauthorized (401) when fetching stations; will re-login (attempt %s/%s)", attempt, max_attempts)
@@ -172,7 +178,10 @@ class IzyClient:
                 headers = {TOKEN_HEADER: self._token, "Accept-Language": self._get_language_header(), "app-platform": APP_PLATFORM_HEADER}
                 async with session.get(url, headers=headers, timeout=20) as resp:
                     text = await resp.text()
-                    _LOGGER.debug("Device page response (status %s): %s", resp.status, text)
+                    if DEBUG_LOG_REQUESTS:
+                        _LOGGER.debug("Device page response (status %s): %s", resp.status, text)
+                    else:
+                        _LOGGER.debug("Device page response received for station %s", component_id)
 
                     if resp.status == 401:
                         _LOGGER.debug("Unauthorized (401) when fetching device page; will re-login (attempt %s/%s)", attempt, max_attempts)
@@ -225,7 +234,10 @@ class IzyClient:
                 headers = {TOKEN_HEADER: self._token, "Accept-Language": self._get_language_header(), "app-platform": APP_PLATFORM_HEADER}
                 async with session.get(url, headers=headers, timeout=20) as resp:
                     text = await resp.text()
-                    _LOGGER.debug("Component response (status %s): %s", resp.status, text)
+                    if DEBUG_LOG_REQUESTS:
+                        _LOGGER.debug("Component response (status %s): %s", resp.status, text)
+                    else:
+                        _LOGGER.debug("Component response received for station %s", component_id)
 
                     if resp.status == 401:
                         _LOGGER.debug("Unauthorized (401) when fetching component; will re-login (attempt %s/%s)", attempt, max_attempts)
@@ -278,7 +290,10 @@ class IzyClient:
                 headers = {TOKEN_HEADER: self._token, "Accept-Language": self._get_language_header(), "app-platform": APP_PLATFORM_HEADER}
                 async with session.get(url, headers=headers, timeout=20) as resp:
                     text = await resp.text()
-                    _LOGGER.debug("Layout power response (status %s): %s", resp.status, text)
+                    if DEBUG_LOG_REQUESTS:
+                        _LOGGER.debug("Layout power response (status %s): %s", resp.status, text)
+                    else:
+                        _LOGGER.debug("Layout power response received for station %s", component_id)
 
                     if resp.status == 401:
                         _LOGGER.debug("Unauthorized (401) when fetching layout power; will re-login (attempt %s/%s)", attempt, max_attempts)
@@ -331,7 +346,10 @@ class IzyClient:
                 headers = {TOKEN_HEADER: self._token, "Accept-Language": self._get_language_header(), "app-platform": APP_PLATFORM_HEADER}
                 async with session.get(url, headers=headers, timeout=20) as resp:
                     text = await resp.text()
-                    _LOGGER.debug("Station info response (status %s): %s", resp.status, text)
+                    if DEBUG_LOG_REQUESTS:
+                        _LOGGER.debug("Station info response (status %s): %s", resp.status, text)
+                    else:
+                        _LOGGER.debug("Station info response received for station %s", component_id)
 
                     if resp.status == 401:
                         _LOGGER.debug("Unauthorized (401) when fetching station info; will re-login (attempt %s/%s)", attempt, max_attempts)
@@ -384,7 +402,10 @@ class IzyClient:
                 headers = {TOKEN_HEADER: self._token, "Accept-Language": self._get_language_header(), "app-platform": APP_PLATFORM_HEADER}
                 async with session.get(url, headers=headers, timeout=20) as resp:
                     text = await resp.text()
-                    _LOGGER.debug("Report response for station %s, timeType=%s (status %s): %s", component_id, time_type, resp.status, text)
+                    if DEBUG_LOG_REQUESTS:
+                        _LOGGER.debug("Report response for station %s, timeType=%s (status %s): %s", component_id, time_type, resp.status, text)
+                    else:
+                        _LOGGER.debug("Report response received for station %s, timeType=%s", component_id, time_type)
 
                     if resp.status == 401:
                         _LOGGER.debug("Unauthorized (401) when fetching report; will re-login (attempt %s/%s)", attempt, max_attempts)
@@ -437,7 +458,10 @@ class IzyClient:
                 headers = {TOKEN_HEADER: self._token, "Accept-Language": self._get_language_header(), "app-platform": APP_PLATFORM_HEADER}
                 async with session.get(url, headers=headers, timeout=20) as resp:
                     text = await resp.text()
-                    _LOGGER.debug("Device WiFi response for SN %s (status %s): %s", serial_number, resp.status, text)
+                    if DEBUG_LOG_REQUESTS:
+                        _LOGGER.debug("Device WiFi response for SN %s (status %s): %s", serial_number, resp.status, text)
+                    else:
+                        _LOGGER.debug("Device WiFi response received for SN %s", serial_number)
 
                     if resp.status == 401:
                         _LOGGER.debug("Unauthorized (401) when fetching device WiFi; will re-login (attempt %s/%s)", attempt, max_attempts)
@@ -490,7 +514,10 @@ class IzyClient:
                 headers = {TOKEN_HEADER: self._token, "Accept-Language": self._get_language_header(), "app-platform": APP_PLATFORM_HEADER}
                 async with session.get(url, headers=headers, timeout=20) as resp:
                     text = await resp.text()
-                    _LOGGER.debug("Battery links response for SN %s (status %s): %s", serial_number, resp.status, text)
+                    if DEBUG_LOG_REQUESTS:
+                        _LOGGER.debug("Battery links response for SN %s (status %s): %s", serial_number, resp.status, text)
+                    else:
+                        _LOGGER.debug("Battery links response received for SN %s", serial_number)
 
                     if resp.status == 401:
                         _LOGGER.debug("Unauthorized (401) when fetching battery links; will re-login (attempt %s/%s)", attempt, max_attempts)
@@ -543,7 +570,10 @@ class IzyClient:
                 headers = {TOKEN_HEADER: self._token, "Accept-Language": self._get_language_header(), "app-platform": APP_PLATFORM_HEADER}
                 async with session.get(url, headers=headers, timeout=20) as resp:
                     text = await resp.text()
-                    _LOGGER.debug("Device temp response for SN %s (status %s): %s", serial_number, resp.status, text)
+                    if DEBUG_LOG_REQUESTS:
+                        _LOGGER.debug("Device temp response for SN %s (status %s): %s", serial_number, resp.status, text)
+                    else:
+                        _LOGGER.debug("Device temp response received for SN %s", serial_number)
 
                     if resp.status == 401:
                         _LOGGER.debug("Unauthorized (401) when fetching device temp; will re-login (attempt %s/%s)", attempt, max_attempts)
@@ -596,7 +626,10 @@ class IzyClient:
                 headers = {TOKEN_HEADER: self._token, "Accept-Language": self._get_language_header(), "app-platform": APP_PLATFORM_HEADER}
                 async with session.get(url, headers=headers, timeout=20) as resp:
                     text = await resp.text()
-                    _LOGGER.debug("Device upgrade response for station %s (status %s): %s", station_id, resp.status, text)
+                    if DEBUG_LOG_REQUESTS:
+                        _LOGGER.debug("Device upgrade response for station %s (status %s): %s", station_id, resp.status, text)
+                    else:
+                        _LOGGER.debug("Device upgrade response received for station %s", station_id)
 
                     if resp.status == 401:
                         _LOGGER.debug("Unauthorized (401) when fetching device upgrade; will re-login (attempt %s/%s)", attempt, max_attempts)
@@ -649,7 +682,10 @@ class IzyClient:
                 headers = {TOKEN_HEADER: self._token, "Accept-Language": self._get_language_header(), "app-platform": APP_PLATFORM_HEADER}
                 async with session.get(url, headers=headers, timeout=20) as resp:
                     text = await resp.text()
-                    _LOGGER.debug("Meter base info response for device %s (status %s): %s", device_id, resp.status, text)
+                    if DEBUG_LOG_REQUESTS:
+                        _LOGGER.debug("Meter base info response for device %s (status %s): %s", device_id, resp.status, text)
+                    else:
+                        _LOGGER.debug("Meter base info response received for device %s", device_id)
 
                     if resp.status == 401:
                         _LOGGER.debug("Unauthorized (401) when fetching meter base info; will re-login (attempt %s/%s)", attempt, max_attempts)
@@ -706,7 +742,10 @@ class IzyClient:
                 
                 async with session.post(url, json=body, headers=headers, timeout=20) as resp:
                     text = await resp.text()
-                    _LOGGER.debug("Meter control response for SN %s (status %s): %s", serial_number, resp.status, text)
+                    if DEBUG_LOG_REQUESTS:
+                        _LOGGER.debug("Meter control response for SN %s (status %s): %s", serial_number, resp.status, text)
+                    else:
+                        _LOGGER.debug("Meter control response received for SN %s", serial_number)
 
                     if resp.status == 401:
                         _LOGGER.debug("Unauthorized (401) when setting meter control; will re-login (attempt %s/%s)", attempt, max_attempts)
@@ -763,7 +802,10 @@ class IzyClient:
                 
                 async with session.post(url, json=body, headers=headers, timeout=20) as resp:
                     text = await resp.text()
-                    _LOGGER.debug("Battery LED response for SN %s (status %s): %s", serial_number, resp.status, text)
+                    if DEBUG_LOG_REQUESTS:
+                        _LOGGER.debug("Battery LED response for SN %s (status %s): %s", serial_number, resp.status, text)
+                    else:
+                        _LOGGER.debug("Battery LED response received for SN %s", serial_number)
 
                     if resp.status == 401:
                         _LOGGER.debug("Unauthorized (401) when setting battery LED; will re-login (attempt %s/%s)", attempt, max_attempts)
@@ -816,7 +858,10 @@ class IzyClient:
                 headers = {TOKEN_HEADER: self._token, "Accept-Language": self._get_language_header(), "app-platform": APP_PLATFORM_HEADER}
                 async with session.get(url, headers=headers, timeout=20) as resp:
                     text = await resp.text()
-                    _LOGGER.debug("Battery cmd response for SN %s (status %s): %s", serial_number, resp.status, text)
+                    if DEBUG_LOG_REQUESTS:
+                        _LOGGER.debug("Battery cmd response for SN %s (status %s): %s", serial_number, resp.status, text)
+                    else:
+                        _LOGGER.debug("Battery cmd response received for SN %s", serial_number)
 
                     if resp.status == 401:
                         _LOGGER.debug("Unauthorized (401) when fetching battery cmd; will re-login (attempt %s/%s)", attempt, max_attempts)
@@ -873,7 +918,10 @@ class IzyClient:
                 
                 async with session.post(url, json=body, headers=headers, timeout=20) as resp:
                     text = await resp.text()
-                    _LOGGER.debug("Battery min_soc response for SN %s (status %s): %s", serial_number, resp.status, text)
+                    if DEBUG_LOG_REQUESTS:
+                        _LOGGER.debug("Battery min_soc response for SN %s (status %s): %s", serial_number, resp.status, text)
+                    else:
+                        _LOGGER.debug("Battery min_soc response received for SN %s", serial_number)
 
                     if resp.status == 401:
                         _LOGGER.debug("Unauthorized (401) when setting battery min_soc; will re-login (attempt %s/%s)", attempt, max_attempts)
@@ -942,7 +990,10 @@ class IzyClient:
                 
                 async with session.post(url, json=body, headers=headers, timeout=20) as resp:
                     text = await resp.text()
-                    _LOGGER.debug("Battery power response for SN %s (status %s): %s", serial_number, resp.status, text)
+                    if DEBUG_LOG_REQUESTS:
+                        _LOGGER.debug("Battery power response for SN %s (status %s): %s", serial_number, resp.status, text)
+                    else:
+                        _LOGGER.debug("Battery power response received for SN %s", serial_number)
 
                     if resp.status == 401:
                         _LOGGER.debug("Unauthorized (401) when setting battery power; will re-login (attempt %s/%s)", attempt, max_attempts)
@@ -999,7 +1050,10 @@ class IzyClient:
                 
                 async with session.post(url, json=body, headers=headers, timeout=20) as resp:
                     text = await resp.text()
-                    _LOGGER.debug("Battery mode response for SN %s (status %s): %s", serial_number, resp.status, text)
+                    if DEBUG_LOG_REQUESTS:
+                        _LOGGER.debug("Battery mode response for SN %s (status %s): %s", serial_number, resp.status, text)
+                    else:
+                        _LOGGER.debug("Battery mode response received for SN %s", serial_number)
 
                     if resp.status == 401:
                         _LOGGER.debug("Unauthorized (401) when setting battery mode; will re-login (attempt %s/%s)", attempt, max_attempts)
@@ -1060,7 +1114,10 @@ class IzyClient:
                 
                 async with session.post(url, json=body, headers=headers, timeout=20) as resp:
                     text = await resp.text()
-                    _LOGGER.debug("Battery manual mode/power response for SN %s (status %s): %s", serial_number, resp.status, text)
+                    if DEBUG_LOG_REQUESTS:
+                        _LOGGER.debug("Battery manual mode/power response for SN %s (status %s): %s", serial_number, resp.status, text)
+                    else:
+                        _LOGGER.debug("Battery manual mode/power response received for SN %s", serial_number)
 
                     if resp.status == 401:
                         _LOGGER.debug("Unauthorized (401) when setting battery manual mode/power; will re-login (attempt %s/%s)", attempt, max_attempts)
@@ -1117,7 +1174,10 @@ class IzyClient:
                 
                 async with session.post(url, json=body, headers=headers, timeout=20) as resp:
                     text = await resp.text()
-                    _LOGGER.debug("Battery toggle off-grid response for SN %s (status %s): %s", serial_number, resp.status, text)
+                    if DEBUG_LOG_REQUESTS:
+                        _LOGGER.debug("Battery toggle off-grid response for SN %s (status %s): %s", serial_number, resp.status, text)
+                    else:
+                        _LOGGER.debug("Battery toggle off-grid response received for SN %s", serial_number)
 
                     if resp.status == 401:
                         _LOGGER.debug("Unauthorized (401) when toggling battery off-grid; will re-login (attempt %s/%s)", attempt, max_attempts)
@@ -1174,7 +1234,10 @@ class IzyClient:
                 
                 async with session.post(url, json=body, headers=headers, timeout=20) as resp:
                     text = await resp.text()
-                    _LOGGER.debug("Battery off-grid mode response for SN %s (status %s): %s", serial_number, resp.status, text)
+                    if DEBUG_LOG_REQUESTS:
+                        _LOGGER.debug("Battery off-grid mode response for SN %s (status %s): %s", serial_number, resp.status, text)
+                    else:
+                        _LOGGER.debug("Battery off-grid mode response received for SN %s", serial_number)
 
                     if resp.status == 401:
                         _LOGGER.debug("Unauthorized (401) when setting battery off-grid mode; will re-login (attempt %s/%s)", attempt, max_attempts)
@@ -1231,7 +1294,10 @@ class IzyClient:
                 
                 async with session.post(url, json=body, headers=headers, timeout=20) as resp:
                     text = await resp.text()
-                    _LOGGER.debug("Battery toggle calibration response for SN %s (status %s): %s", serial_number, resp.status, text)
+                    if DEBUG_LOG_REQUESTS:
+                        _LOGGER.debug("Battery toggle calibration response for SN %s (status %s): %s", serial_number, resp.status, text)
+                    else:
+                        _LOGGER.debug("Battery toggle calibration response received for SN %s", serial_number)
 
                     if resp.status == 401:
                         _LOGGER.debug("Unauthorized (401) when toggling battery calibration; will re-login (attempt %s/%s)", attempt, max_attempts)
@@ -1288,7 +1354,10 @@ class IzyClient:
                 
                 async with session.post(url, json=body, headers=headers, timeout=20) as resp:
                     text = await resp.text()
-                    _LOGGER.debug("Battery calibration interval response for SN %s (status %s): %s", serial_number, resp.status, text)
+                    if DEBUG_LOG_REQUESTS:
+                        _LOGGER.debug("Battery calibration interval response for SN %s (status %s): %s", serial_number, resp.status, text)
+                    else:
+                        _LOGGER.debug("Battery calibration interval response received for SN %s", serial_number)
 
                     if resp.status == 401:
                         _LOGGER.debug("Unauthorized (401) when setting battery calibration interval; will re-login (attempt %s/%s)", attempt, max_attempts)
@@ -1345,7 +1414,10 @@ class IzyClient:
                 
                 async with session.post(url, json=body, headers=headers, timeout=20) as resp:
                     text = await resp.text()
-                    _LOGGER.debug("Battery calibration time response for SN %s (status %s): %s", serial_number, resp.status, text)
+                    if DEBUG_LOG_REQUESTS:
+                        _LOGGER.debug("Battery calibration time response for SN %s (status %s): %s", serial_number, resp.status, text)
+                    else:
+                        _LOGGER.debug("Battery calibration time response received for SN %s", serial_number)
 
                     if resp.status == 401:
                         _LOGGER.debug("Unauthorized (401) when setting battery calibration time; will re-login (attempt %s/%s)", attempt, max_attempts)
