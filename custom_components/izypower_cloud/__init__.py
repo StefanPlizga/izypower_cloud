@@ -9,7 +9,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN, DEFAULT_SCAN_INTERVAL, DEBUG_LOG_REQUESTS
+from .const import DOMAIN, DEFAULT_SCAN_INTERVAL
 from .client import IzyClient, ServerUnavailableError
 from .statistics import (
     async_migrate_initial_statistics_from_sensors_if_missing,
@@ -155,21 +155,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                             
                             report_data = await client.async_get_report(component_id=station_id, date=search_time, time_type=time_type)
                             stations_reports[station_id][time_type] = report_data
-                            if DEBUG_LOG_REQUESTS:
-                                _LOGGER.debug(
-                                    "Report data for station %s (timeType=%s, searchTime=%s): %s",
-                                    station_id,
-                                    time_type,
-                                    search_time,
-                                    report_data,
-                                )
-                            else:
-                                _LOGGER.debug(
-                                    "Report data fetched for station %s (timeType=%s, searchTime=%s)",
-                                    station_id,
-                                    time_type,
-                                    search_time,
-                                )
+                            _LOGGER.debug(
+                                "Report data for station %s (timeType=%s, searchTime=%s): %s",
+                                station_id,
+                                time_type,
+                                search_time,
+                                report_data,
+                            )
 
                         except Exception as report_exc:
                             _LOGGER.debug("Failed to fetch report for station %s (timeType=%s): %s", station_id, time_type, report_exc)
@@ -177,21 +169,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
                     if can_run_hourly_import and last_hourly_stats_slot_by_station.get(station_id) != prev_hour_slot_key:
                         station_name = record.get("stationName", str(station_id))
-                        if DEBUG_LOG_REQUESTS:
-                            _LOGGER.debug(
-                                "Calling async_insert_hourly_statistics_from_report: station=%s station_name=%s slot=%s report_data_by_period=%s",
-                                station_id,
-                                station_name,
-                                prev_hour_slot_utc.isoformat(),
-                                stations_reports[station_id],
-                            )
-                        else:
-                            _LOGGER.debug(
-                                "Calling async_insert_hourly_statistics_from_report: station=%s station_name=%s slot=%s",
-                                station_id,
-                                station_name,
-                                prev_hour_slot_utc.isoformat(),
-                            )
+                        _LOGGER.debug(
+                            "Calling async_insert_hourly_statistics_from_report: station=%s station_name=%s slot=%s report_data_by_period=%s",
+                            station_id,
+                            station_name,
+                            prev_hour_slot_utc.isoformat(),
+                            stations_reports[station_id],
+                        )
                         inserted = await async_insert_hourly_statistics_from_report(
                             hass,
                             station_id,
@@ -212,10 +196,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         current_date = now.strftime("%Y-%m-%d")
                         component_data = await client.async_get_component(component_id=station_id, date=current_date)
                         stations_component[station_id] = component_data
-                        if DEBUG_LOG_REQUESTS:
-                            _LOGGER.debug("Component data for station %s: %s", station_id, component_data)
-                        else:
-                            _LOGGER.debug("Component data fetched for station %s", station_id)
+                        _LOGGER.debug("Component data for station %s: %s", station_id, component_data)
                     except Exception as component_exc:
                         _LOGGER.debug("Failed to fetch component data for station %s: %s", station_id, component_exc)
                         stations_component[station_id] = {}
@@ -225,10 +206,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         current_date = now.strftime("%Y-%m-%d")
                         layout_power_data = await client.async_get_layout_power(component_id=station_id, date=current_date, is_v2=True)
                         stations_layout_power[station_id] = layout_power_data
-                        if DEBUG_LOG_REQUESTS:
-                            _LOGGER.debug("Layout power data for station %s: %s", station_id, layout_power_data)
-                        else:
-                            _LOGGER.debug("Layout power data fetched for station %s", station_id)
+                        _LOGGER.debug("Layout power data for station %s: %s", station_id, layout_power_data)
                     except Exception as layout_exc:
                         _LOGGER.debug("Failed to fetch layout power data for station %s: %s", station_id, layout_exc)
                         stations_layout_power[station_id] = {}
@@ -237,10 +215,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     try:
                         device_page_data = await client.async_get_device_page(component_id=station_id, device_type="all", page=1, limit=100)
                         stations_devices[station_id] = device_page_data
-                        if DEBUG_LOG_REQUESTS:
-                            _LOGGER.debug("Device page data for station %s: %s", station_id, device_page_data)
-                        else:
-                            _LOGGER.debug("Device page data fetched for station %s", station_id)
+                        _LOGGER.debug("Device page data for station %s: %s", station_id, device_page_data)
                         
                         # Get device type mapping from station info to identify battery devices
                         device_type_mapping = {}
@@ -268,10 +243,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                                 try:
                                     wifi_data = await client.async_get_device_wifi(serial_number=device_sn)
                                     stations_devices[station_id]["wifi_data"][device_sn] = wifi_data
-                                    if DEBUG_LOG_REQUESTS:
-                                        _LOGGER.debug("WiFi data for device SN %s: %s", device_sn, wifi_data)
-                                    else:
-                                        _LOGGER.debug("WiFi data fetched for device SN %s", device_sn)
+                                    _LOGGER.debug("WiFi data for device SN %s: %s", device_sn, wifi_data)
                                 except Exception as wifi_exc:
                                     _LOGGER.debug("Failed to fetch WiFi data for device SN %s: %s", device_sn, wifi_exc)
                                     stations_devices[station_id]["wifi_data"][device_sn] = {}
@@ -290,10 +262,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                                         battery_links_data = await client.async_get_battery_links(serial_number=device_sn)
                                         if device_id:
                                             stations_devices[station_id]["battery_links"][device_id] = battery_links_data
-                                        if DEBUG_LOG_REQUESTS:
-                                            _LOGGER.debug("Battery links data for device ID %s (SN %s): %s", device_id, device_sn, battery_links_data)
-                                        else:
-                                            _LOGGER.debug("Battery links data fetched for device ID %s (SN %s)", device_id, device_sn)
+                                        _LOGGER.debug("Battery links data for device ID %s (SN %s): %s", device_id, device_sn, battery_links_data)
                                     except ServerUnavailableError as battery_exc:
                                         _LOGGER.debug("Server unavailable when fetching battery links for device SN %s: %s", device_sn, battery_exc)
                                         if device_id:
@@ -309,10 +278,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                                         battery_cmd_data = await client.async_get_battery_cmd(serial_number=device_sn)
                                         if device_id:
                                             stations_devices[station_id]["battery_cmd"][device_id] = battery_cmd_data
-                                        if DEBUG_LOG_REQUESTS:
-                                            _LOGGER.debug("Battery cmd data for device ID %s (SN %s): %s", device_id, device_sn, battery_cmd_data)
-                                        else:
-                                            _LOGGER.debug("Battery cmd data fetched for device ID %s (SN %s)", device_id, device_sn)
+                                        _LOGGER.debug("Battery cmd data for device ID %s (SN %s): %s", device_id, device_sn, battery_cmd_data)
                                     except ServerUnavailableError as cmd_exc:
                                         _LOGGER.debug("Server unavailable when fetching battery cmd for device SN %s: %s", device_sn, cmd_exc)
                                         if device_id:
@@ -330,10 +296,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                                         temp_data = await client.async_get_device_temp(serial_number=device_sn, date=current_date)
                                         if device_id:
                                             stations_devices[station_id]["temp_data"][device_id] = temp_data
-                                        if DEBUG_LOG_REQUESTS:
-                                            _LOGGER.debug("Temperature data for device ID %s (SN %s): %s", device_id, device_sn, temp_data)
-                                        else:
-                                            _LOGGER.debug("Temperature data fetched for device ID %s (SN %s)", device_id, device_sn)
+                                        _LOGGER.debug("Temperature data for device ID %s (SN %s): %s", device_id, device_sn, temp_data)
                                     except ServerUnavailableError as temp_exc:
                                         _LOGGER.debug("Server unavailable when fetching temperature data for device SN %s: %s", device_sn, temp_exc)
                                         if device_id:
@@ -350,10 +313,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                                         meter_base_info = await client.async_get_meter_base_info(device_id=device_id)
                                         if device_id:
                                             stations_devices[station_id]["meter_base_info"][device_id] = meter_base_info
-                                        if DEBUG_LOG_REQUESTS:
-                                            _LOGGER.debug("Meter base info for device ID %s (SN %s): %s", device_id, device_sn, meter_base_info)
-                                        else:
-                                            _LOGGER.debug("Meter base info fetched for device ID %s (SN %s)", device_id, device_sn)
+                                        _LOGGER.debug("Meter base info for device ID %s (SN %s): %s", device_id, device_sn, meter_base_info)
                                     except ServerUnavailableError as meter_exc:
                                         _LOGGER.debug("Server unavailable when fetching meter base info for device SN %s: %s", device_sn, meter_exc)
                                         if device_id:
@@ -367,10 +327,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         try:
                             upgrade_data = await client.async_get_device_upgrade(station_id=station_id)
                             stations_devices[station_id]["upgrade_data"] = upgrade_data
-                            if DEBUG_LOG_REQUESTS:
-                                _LOGGER.debug("Device upgrade data for station %s: %s", station_id, upgrade_data)
-                            else:
-                                _LOGGER.debug("Device upgrade data fetched for station %s", station_id)
+                            _LOGGER.debug("Device upgrade data for station %s: %s", station_id, upgrade_data)
                         except Exception as upgrade_exc:
                             _LOGGER.debug("Failed to fetch device upgrade data for station %s: %s", station_id, upgrade_exc)
                             stations_devices[station_id]["upgrade_data"] = {}

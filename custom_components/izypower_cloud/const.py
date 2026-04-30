@@ -28,8 +28,6 @@ BATTERY_POWER_URL_TEMPLATE = "http://application.izypowercloud.fr/photo_voltaic/
 BATTERY_MODE_URL_TEMPLATE = "http://application.izypowercloud.fr/photo_voltaic/api/v2/device/yz/battery/mode/{serial_number}"
 BATTERY_MANUAL_MODE_VALUE_URL_TEMPLATE = "http://application.izypowercloud.fr/photo_voltaic/api/v2/device/yz/battery/manual_mode_value/{serial_number}"
 
-DEBUG_LOG_REQUESTS = False
-
 TOKEN_HEADER = "x-tts-access-token"
 APP_PLATFORM_HEADER = "izy"
 

@@ -8,7 +8,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, ENTITY_ID_PREFIX, DEBUG_LOG_REQUESTS
+from .const import DOMAIN, ENTITY_ID_PREFIX
 from .client import ServerUnavailableError
 
 _LOGGER = logging.getLogger(__name__)
@@ -239,9 +239,8 @@ class BatteryControlModeSelect(CoordinatorEntity, SelectEntity):
         if self._station_id in stations_devices:
             device_cmd = self._get_battery_cmd()
             
-            if DEBUG_LOG_REQUESTS:
-                _LOGGER.debug("Device %s battery_cmd keys: %s", self._device_id, list(device_cmd.keys()) if device_cmd else None)
-                _LOGGER.debug("Device %s full device_cmd: %s", self._device_id, device_cmd)
+            _LOGGER.debug("Device %s battery_cmd keys: %s", self._device_id, list(device_cmd.keys()) if device_cmd else None)
+            _LOGGER.debug("Device %s full device_cmd: %s", self._device_id, device_cmd)
             
             ctr_mode = device_cmd.get("data", {}).get("mode", {}).get("ctr_mode")
             _LOGGER.debug("Device %s extracted ctr_mode: %s (type: %s)", self._device_id, ctr_mode, type(ctr_mode).__name__ if ctr_mode is not None else None)
