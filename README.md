@@ -246,7 +246,6 @@ Pour les appareils compteur intelligent, les contrôles suivants sont disponible
 
 ## Remarques
 
-- Tous les capteurs d'énergie sont compatibles avec le tableau de bord Énergie de Home Assistant
 - Les capteurs de taux analysent automatiquement les valeurs de pourcentage de l'API
 - Les informations Wi-Fi ne sont disponibles que pour les appareils avec numéros de série
 - Le capteur d'état de charge moyen n'apparaît que pour les appareils avec batterie intégrée

@@ -243,7 +243,6 @@ For smart meter devices, the following controls are available:
 
 ## Notes
 
-- All energy sensors are compatible with Home Assistant's Energy dashboard
 - Rate sensors automatically parse percentage values from the API
 - WiFi information only available for devices with serial numbers
 - Average state of charge sensor only appears for devices with integrated battery
