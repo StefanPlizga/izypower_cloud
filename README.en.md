@@ -1,6 +1,6 @@
 # Izypower Cloud Home Assistant Integration
 
-[![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge)](https://github.com/hacs/integration)
+[![hacs_badge](https://img.shields.io/badge/HACS-Default-green.svg?style=for-the-badge)](https://github.com/hacs/integration)
 [![GitHub release](https://img.shields.io/github/release/StefanPlizga/izypower_cloud.svg?style=for-the-badge)](https://github.com/StefanPlizga/izypower_cloud/releases)
 [![GitHub pre-release](https://img.shields.io/github/v/release/StefanPlizga/izypower_cloud?include_prereleases&label=Beta&style=for-the-badge)](https://github.com/StefanPlizga/izypower_cloud/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
@@ -21,18 +21,9 @@ Thanks to Khirale, MarcoCMG, Wellgo and Zyos67 for testing and feedback.
 ### Via HACS (Recommended)
 
 1. Ensure [HACS](https://hacs.xyz/) is installed in your Home Assistant instance
-2. Click the button below to add this repository to HACS:
-
-   [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=StefanPlizga&repository=izypower_cloud&category=integration)
-
-   Or manually:
-   - In HACS, click on "Integrations"
-   - Click the menu (three dots) in the top right and select "Custom repositories"
-   - Add `https://github.com/StefanPlizga/izypower_cloud` as a repository with category "Integration"
-
-3. Search for "Izypower Cloud" in HACS and click "Download"
-4. Restart Home Assistant
-5. Click the button below to add the integration:
+2. Search for "Izypower Cloud" in HACS and click "Download"
+3. Restart Home Assistant
+4. Click the button below to add the integration:
 
    [![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=izypower_cloud)
 
@@ -57,6 +48,18 @@ Thanks to Khirale, MarcoCMG, Wellgo and Zyos67 for testing and feedback.
 - After setup, you can modify `refresh_period` from the integration Options menu
 
 > **Note**: The default refresh period is set to 3 minutes because the data comes from the Izypower Cloud and is updated in the cloud every 3 minutes. Therefore, there is no need to refresh more frequently. The data is not real-time, as in the Izypower Cloud application.
+
+## Energy Dashboard Configuration
+
+The statistics to configure in the Energy dashboard are (the names of statistics are in French):
+
+- **Grid connections**: look for the statistic ending with `Reseau Import Stats` for import and `Reseau Export Stats` for export. The power sensor remains unchanged: `Grid Power`.
+- **Solar panels**: look for the statistic ending with `Production Stats`. The power sensor remains unchanged: `PV Production Power`.
+- **Home battery storage**: look for the statistic ending with `Batterie Charge Stats` for charge and `Batterie Decharge Stats` for discharge. The power sensor remains unchanged: `Battery Power` (in inverted mode).
+
+The created statistics use energy sensor data to preserve the Izypower ecosystem consumption/production history in the Energy dashboard. This allows previous sensors to be removed from the Energy dashboard.
+
+After updating the integration, wait a few minutes for history to be copied from energy sensors into statistics (for users who already have existing integration history). Statistics are then updated every hour, around 10 minutes after the start of each hour.
 
 ## Features
 

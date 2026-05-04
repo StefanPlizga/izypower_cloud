@@ -1,6 +1,6 @@
 # Intégration Izypower Cloud pour Home Assistant
 
-[![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge)](https://github.com/hacs/integration)
+[![hacs_badge](https://img.shields.io/badge/HACS-Default-green.svg?style=for-the-badge)](https://github.com/hacs/integration)
 [![GitHub release](https://img.shields.io/github/release/StefanPlizga/izypower_cloud.svg?style=for-the-badge)](https://github.com/StefanPlizga/izypower_cloud/releases)
 [![GitHub pre-release](https://img.shields.io/github/v/release/StefanPlizga/izypower_cloud?include_prereleases&label=Beta&style=for-the-badge)](https://github.com/StefanPlizga/izypower_cloud/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
@@ -23,18 +23,9 @@ Merci à Khirale, MarcoCMG, Wellgo et Zyos67 pour leurs tests et retours.
 ### Via HACS (Recommandé)
 
 1. Assurez-vous que [HACS](https://hacs.xyz/) est installé dans votre instance Home Assistant
-2. Cliquez sur le bouton ci-dessous pour ajouter ce dépôt à HACS :
-
-   [![Ouvrir votre instance Home Assistant et ouvrir un dépôt dans le magasin communautaire Home Assistant.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=StefanPlizga&repository=izypower_cloud&category=integration)
-
-   Ou manuellement :
-   - Dans HACS, cliquez sur "Intégrations"
-   - Cliquez sur le menu (trois points) en haut à droite et sélectionnez "Dépôts personnalisés"
-   - Ajoutez `https://github.com/StefanPlizga/izypower_cloud` comme dépôt avec la catégorie "Intégration"
-
-3. Recherchez "Izypower Cloud" dans HACS et cliquez sur "Télécharger"
-4. Redémarrez Home Assistant
-5. Cliquez sur le bouton ci-dessous pour ajouter l'intégration :
+2. Recherchez "Izypower Cloud" dans HACS et cliquez sur "Télécharger"
+3. Redémarrez Home Assistant
+4. Cliquez sur le bouton ci-dessous pour ajouter l'intégration :
 
    [![Ouvrir votre instance Home Assistant et démarrer la configuration d'une nouvelle intégration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=izypower_cloud)
 
@@ -59,6 +50,18 @@ Merci à Khirale, MarcoCMG, Wellgo et Zyos67 pour leurs tests et retours.
 - Après la configuration, vous pouvez modifier la `période de rafraîchissement` depuis le menu Options de l'intégration
 
 > **Note** : La période de rafraîchissement par défaut est de 3 minutes car les données proviennent du cloud Izypower et sont mises à jour dans le cloud toutes les 3 minutes. Il n'est donc pas nécessaire de rafraîchir plus fréquemment. Les données ne sont pas en temps réel, tout comme dans l'application Izypower Cloud.
+
+## Configuration du dashboard Energie
+
+Les statistiques à configurer dans le dashboard Energie sont :
+
+- **Connexions au réseau** : cherchez la statistique se terminant par `Reseau Import Stats` pour l'import et `Reseau Export Stats` pour l'export. Le capteur de puissance reste inchangé, à savoir `Puissance Réseau`.
+- **Panneaux solaires** : cherchez la statistique se terminant par `Production Stats`. Le capteur de puissance reste inchangé, à savoir `Puissance PV`.
+- **Batterie de stockage domestique** : cherchez la statistique se terminant par `Batterie Charge Stats` pour la charge et `Batterie Decharge Stats` pour la décharge. Le capteur de puissance reste inchangé, à savoir `Puissance Batterie` (en mode inversé).
+
+Les statistiques créées récupèrent les données des capteurs d'énergie afin de conserver l'historique de consommation/production de l'écosystème Izypower dans le dashboard Energie. Cela permet de supprimer du dashboard Energie les précédents capteurs.
+
+Il faut attendre quelques minutes après la mise à jour de l'intégration pour que l'historique soit recopié depuis les capteurs d'énergie vers les statistiques (pour ceux ayant déjà un historique de l'intégration). La mise à jour des statistiques se fait ensuite toutes les heures, environ 10 minutes après le début de chaque heure.
 
 ## Fonctionnalités
 
