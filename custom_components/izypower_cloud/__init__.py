@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from datetime import datetime, timedelta
 import logging
 
@@ -11,73 +10,10 @@ from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, DEFAULT_SCAN_INTERVAL
 from .client import IzyClient, ServerUnavailableError
-from .statistics import (
-    async_migrate_initial_statistics_from_sensors_if_missing,
-    async_insert_hourly_statistics_from_report,
-)
+from .statistics import async_insert_hourly_statistics_from_report
 
 _LOGGER = logging.getLogger(__name__)
 #_LOGGER.disabled = True
-
-
-async def _async_run_startup_statistics_migration(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Run startup-only statistics migration after sensor entities are loaded."""
-    max_attempts = 10
-    delay_seconds = 15
-    try:
-        for attempt in range(1, max_attempts + 1):
-            integration_data = hass.data.get(DOMAIN, {}).get(entry.entry_id)
-            if not integration_data:
-                return
-
-            coordinator: DataUpdateCoordinator | None = integration_data.get("coordinator")
-            if coordinator is None:
-                return
-
-            coordinator_data = coordinator.data or {}
-            stations_data = coordinator_data.get("stations", {})
-            records = stations_data.get("data", {}).get("records", [])
-
-            should_retry_any = False
-            seeded_total = 0
-            slot_utc = dt_util.as_utc(dt_util.now().replace(minute=0, second=0, microsecond=0))
-            for record in records:
-                station_id = record.get("stationsId")
-                if not station_id:
-                    continue
-
-                station_name = record.get("stationName", str(station_id))
-                seeded, should_retry = await async_migrate_initial_statistics_from_sensors_if_missing(
-                    hass,
-                    station_id,
-                    station_name,
-                    slot_utc,
-                )
-                seeded_total += seeded
-                should_retry_any = should_retry_any or should_retry
-
-            if not should_retry_any:
-                _LOGGER.info(
-                    "Startup statistics migration finished (attempt %s/%s, seeded=%s)",
-                    attempt,
-                    max_attempts,
-                    seeded_total,
-                )
-                return
-
-            _LOGGER.info(
-                "Startup statistics migration deferred (attempt %s/%s): some sensors not ready yet",
-                attempt,
-                max_attempts,
-            )
-            await asyncio.sleep(delay_seconds)
-
-        _LOGGER.info("Startup statistics migration stopped after %s attempts", max_attempts)
-    finally:
-        integration_data = hass.data.get(DOMAIN, {}).get(entry.entry_id)
-        if integration_data is not None:
-            integration_data["startup_migration_done"] = True
-            _LOGGER.debug("Startup statistics migration gate opened for hourly imports")
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -111,9 +47,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         stations_devices = {}
         now = datetime.now()
         now_local = dt_util.now().replace(second=0, microsecond=0)
-        integration_data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
-        startup_migration_done = integration_data.get("startup_migration_done", False)
-        can_run_hourly_import = now_local.minute >= 10 and startup_migration_done
+        can_run_hourly_import = now_local.minute >= 10
         prev_hour_local = now_local.replace(minute=0) - timedelta(hours=1)
         prev_hour_slot_key = prev_hour_local.strftime("%Y-%m-%d %H")
         prev_hour_slot_utc = dt_util.as_utc(prev_hour_local)
@@ -122,11 +56,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 "Skipping hourly statistics import before H+10 (now_local=%s, minute=%s)",
                 now_local.isoformat(),
                 now_local.minute,
-            )
-        elif not startup_migration_done:
-            _LOGGER.debug(
-                "Skipping hourly statistics import until startup migration completes (now_local=%s)",
-                now_local.isoformat(),
             )
         records = stations_data.get("data", {}).get("records", [])
         for record in records:
@@ -363,13 +292,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
         "client": client,
         "coordinator": coordinator,
-        "startup_migration_done": False,
     }
 
     await hass.config_entries.async_forward_entry_setups(entry, ["sensor", "switch", "number", "button", "select"])
-
-    migration_task = hass.async_create_task(_async_run_startup_statistics_migration(hass, entry))
-    hass.data[DOMAIN][entry.entry_id]["startup_migration_task"] = migration_task
 
     _LOGGER.debug("Hourly statistics source is coordinator report polling (first successful run each hour)")
 
@@ -387,9 +312,5 @@ async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unload_ok = await hass.config_entries.async_unload_platforms(entry, ["sensor", "switch", "number", "button", "select"])
     if unload_ok:
-        integration_data = hass.data[DOMAIN].pop(entry.entry_id, None)
-        if integration_data:
-            migration_task = integration_data.get("startup_migration_task")
-            if migration_task and not migration_task.done():
-                migration_task.cancel()
+        hass.data[DOMAIN].pop(entry.entry_id, None)
     return unload_ok
