@@ -704,18 +704,6 @@ class BatteryDeviceEnergySensor(BatteryLinksBaseSensor):
         """Return the battery device total energy (socKwh) value in kWh."""
         battery_links_data = self._get_battery_links_data()
         return battery_links_data.get("data", {}).get("socKwh")
-    
-    @property
-    def extra_state_attributes(self):
-        """Return additional battery data as attributes."""
-        battery_links_data = self._get_battery_links_data()
-        data = battery_links_data.get("data", {})
-        
-        attributes = {
-            "onlineState": data.get("onlineState"),
-        }
-        
-        return attributes
 
 
 class BatteryLinksDataSensor(BatteryLinksBaseSensor):
@@ -786,7 +774,7 @@ class BatteryLinksDataSensor(BatteryLinksBaseSensor):
 
 
 class BatteryDeviceStateSensor(BatteryLinksBaseSensor):
-    """Sensor for battery device state based on power value."""
+    """Sensor for battery device state based on battery onlineState."""
     
     _attr_device_class = SensorDeviceClass.ENUM
     _attr_options = ["standby", "charging", "discharging"]
@@ -807,20 +795,27 @@ class BatteryDeviceStateSensor(BatteryLinksBaseSensor):
     
     @property
     def native_value(self):
-        """Return the battery device state based on batteryPower value."""
+        """Return the battery device state based on onlineState value."""
         battery_links_data = self._get_battery_links_data()
-        battery_power = battery_links_data.get("data", {}).get("batteryPower")
+        online_state = battery_links_data.get("data", {}).get("onlineState")
         
-        if battery_power is None:
+        if online_state is None:
+            return None
+
+        try:
+            online_state = int(online_state)
+        except (TypeError, ValueError):
             return None
         
-        # Determine state based on power value
-        if battery_power == 0:
+        # Determine state based on the API onlineState code.
+        if online_state == 1000:
             return "standby"
-        elif battery_power > 0:
-            return "discharging"
-        else:  # battery_power < 0
+        if online_state == 1001:
             return "charging"
+        if online_state == 1002:
+            return "discharging"
+
+        return None
 
 
 # Battery sensors configuration
