@@ -166,7 +166,6 @@ class MeterInjectionLimitNumber(CoordinatorEntity, NumberEntity):
     _attr_mode = NumberMode.BOX
     _attr_native_min_value = 0
     _attr_native_max_value = 36000
-    _attr_native_step = 50
     _attr_native_unit_of_measurement = UnitOfPower.WATT
     
     def __init__(
@@ -235,6 +234,38 @@ class MeterInjectionLimitNumber(CoordinatorEntity, NumberEntity):
             return is_control
         
         return False
+
+    @property
+    def native_step(self) -> float:
+        """Return a dynamic step matching allowed values.
+
+        Allowed sequence is: 0, 50, then +10 increments.
+        """
+        current = self.native_value
+        if current is None or current < 50:
+            return 50
+        return 10
+
+    def _normalize_injection_limit(self, requested_value: float, current_value: float | None) -> int:
+        """Normalize user input to allowed values: 0, 50, then steps of 10."""
+        max_value = int(self._attr_native_max_value)
+        requested = int(round(float(requested_value)))
+
+        if requested <= 0:
+            return 0
+
+        if requested < 50:
+            # If user is decreasing from >=50, snap to 0. Otherwise snap to 50.
+            if current_value is not None and current_value >= 50 and requested < current_value:
+                return 0
+            return 50
+
+        snapped = int(round(requested / 10.0) * 10)
+        if snapped < 50:
+            snapped = 50
+        if snapped > max_value:
+            snapped = max_value
+        return snapped
     
     async def async_set_native_value(self, value: float) -> None:
         """Set the injection limit (convert positive display value to negative API value)."""
@@ -250,8 +281,9 @@ class MeterInjectionLimitNumber(CoordinatorEntity, NumberEntity):
             is_control = meter_extra.get("isControl", False)
         
         try:
-            # Convert positive display value to negative for API (e.g., 300 -> -300)
-            feed_threshold_api = -int(abs(value))
+            # Normalize allowed values (0, 50, then +10) then convert to API sign.
+            normalized_value = self._normalize_injection_limit(value, self.native_value)
+            feed_threshold_api = -normalized_value
             
             await self._client.async_set_meter_control(
                 serial_number=self._device_sn,
