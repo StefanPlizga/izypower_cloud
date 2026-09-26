@@ -1,4 +1,4 @@
-# Izypower Cloud Home Assistant Integration
+# Isypower Cloud (Materfrance) Home Assistant Integration
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Default-green.svg?style=for-the-badge)](https://github.com/hacs/integration)
 [![GitHub release](https://img.shields.io/github/release/StefanPlizga/izypower_cloud.svg?style=for-the-badge)](https://github.com/StefanPlizga/izypower_cloud/releases)
@@ -7,9 +7,9 @@
 [![Maintenance](https://img.shields.io/maintenance/yes/2026.svg?style=for-the-badge)](https://github.com/StefanPlizga/izypower_cloud)
 [![Downloads](https://img.shields.io/github/downloads/StefanPlizga/izypower_cloud/total.svg?style=for-the-badge)](https://github.com/StefanPlizga/izypower_cloud/releases)
 
-This custom integration automatically discovers all Izypower Cloud power stations and provides comprehensive monitoring of your solar installation.
+This custom integration automatically discovers all Isypower Cloud (Materfrance) power stations and provides comprehensive monitoring of your solar installation.
 
-**You need an Izypower account to use this integration. Only devices from the Izypower range by Materfrance are supported by this integration.**
+**You need an Isypower account to use this integration. Only devices from the Isypower range by Materfrance are supported by this integration.**
 
 > **Important Note**: This is a community integration and is not developped by Materfrance.
 
@@ -19,10 +19,12 @@ Thanks to Khirale, MarcoCMG, Wellgo and Zyos67 for testing and feedback.
 
 ## Installation
 
+> **Compatibility note**: The integration is branded as Isypower Cloud since end of Septembre 2026, but the Home Assistant technical domain of the integration remains `izypower_cloud` to keep existing installations, entities, devices, and statistics history working without reconfiguration.
+
 ### Via HACS (Recommended)
 
 1. Ensure [HACS](https://hacs.xyz/) is installed in your Home Assistant instance
-2. Search for "Izypower Cloud" in HACS and click "Download"
+2. Search for "Isypower Cloud" in HACS and click "Download"
 3. Restart Home Assistant
 4. Click the button below to add the integration:
 
@@ -30,7 +32,7 @@ Thanks to Khirale, MarcoCMG, Wellgo and Zyos67 for testing and feedback.
 
    Or manually:
    - Go to Settings > Devices & Services > Add Integration
-   - Search for "Izypower Cloud" and follow the configuration steps
+   - Search for "Isypower Cloud" and follow the configuration steps
 
 ### Manual Installation
 
@@ -39,16 +41,16 @@ Thanks to Khirale, MarcoCMG, Wellgo and Zyos67 for testing and feedback.
 3. If the `custom_components` folder doesn't exist, create it in the root of your Home Assistant configuration
 4. Restart Home Assistant
 5. Go to Settings > Devices & Services > Add Integration
-6. Search for "Izypower Cloud" and follow the configuration steps
+6. Search for "Isypower Cloud" and follow the configuration steps
 
 ## Configuration
 
 - Add the integration via the Home Assistant UI
-- Enter your Izypower Cloud `username` and `password`
+- Enter your Isypower Cloud `username` and `password`
 - Optional: Set `refresh_period` in minutes (default: 3 minutes)
 - After setup, you can modify `refresh_period` from the integration Options menu
 
-> **Note**: The default refresh period is set to 3 minutes because the data comes from the Izypower Cloud and is updated in the cloud every 3 minutes. Therefore, there is no need to refresh more frequently. The data is not real-time, as in the Izypower Cloud application.
+> **Note**: The default refresh period is set to 3 minutes because the data comes from the Isypower Cloud and is updated in the cloud every 3 minutes. Therefore, there is no need to refresh more frequently. The data is not real-time, as in the Isypower Cloud application.
 
 ## Energy Dashboard Configuration
 
@@ -58,14 +60,14 @@ The statistics to configure in the Energy dashboard are (the names of statistics
 - **Solar panels**: look for the statistic ending with `Production Stats`. The power sensor remains unchanged: `PV Production Power`.
 - **Home battery storage**: look for the statistic ending with `Batterie Charge Stats` for charge and `Batterie Decharge Stats` for discharge. The power sensor remains unchanged: `Battery Power` (in inverted mode).
 
-The created statistics use energy sensor data to preserve the Izypower ecosystem consumption/production history in the Energy dashboard. This allows previous sensors to be removed from the Energy dashboard.
+The created statistics use energy sensor data to preserve the Isypower ecosystem consumption/production history in the Energy dashboard. This allows previous sensors to be removed from the Energy dashboard.
 
 After updating the integration, wait a few minutes for history to be copied from energy sensors into statistics (for users who already have existing integration history). Statistics are then updated every hour, around 10 minutes after the start of each hour.
 
 ## Features
 
 ### Automatic Discovery
-- All power stations in your Izypower Cloud account are automatically discovered
+- All power stations in your Isypower Cloud account are automatically discovered
 - Each station is created as a device with all associated sensors
 - Sub-devices are created for inverters and other equipment
 
@@ -199,7 +201,7 @@ For smart meter devices, the following controls are available:
 
 ### Technical Features
 
-- Cloud polling: Data retrieved via Izypower Cloud API
+- Cloud polling: Data retrieved via Isypower Cloud API
 - Configuration via Home Assistant config flow and options flow
 - Customizable refresh period
 - Automatic discovery of stations and devices

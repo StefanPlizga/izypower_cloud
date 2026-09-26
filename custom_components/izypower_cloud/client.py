@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from .const import LOGIN_URL, STATIONS_URL, DEVICE_PAGE_URL_TEMPLATE, COMPONENT_URL_TEMPLATE, STATION_INFO_URL_TEMPLATE, REPORT_URL_TEMPLATE, LAYOUT_POWER_URL_TEMPLATE, DEVICE_WIFI_URL_TEMPLATE, BATTERY_LINKS_URL_TEMPLATE, DEVICE_TEMP_URL_TEMPLATE, DEVICE_UPGRADE_URL_TEMPLATE, METER_BASE_INFO_URL_TEMPLATE, METER_CONTROL_URL_TEMPLATE, BATTERY_LED_URL_TEMPLATE, BATTERY_CMD_URL_TEMPLATE, BATTERY_TOGGLE_OFFGRID_URL_TEMPLATE, BATTERY_OFFGRID_URL_TEMPLATE, BATTERY_TOGGLE_FULLCHARGE_DAYS_URL_TEMPLATE, BATTERY_FULLCHARGE_DAYS_URL_TEMPLATE, BATTERY_FULLCHARGE_TIME_URL_TEMPLATE, BATTERY_MIN_SOC_URL_TEMPLATE, BATTERY_POWER_URL_TEMPLATE, BATTERY_MODE_URL_TEMPLATE, BATTERY_MANUAL_MODE_VALUE_URL_TEMPLATE, TOKEN_HEADER, APP_PLATFORM_HEADER
+from .const import LOGIN_URL, STATIONS_URL, DEVICE_PAGE_URL_TEMPLATE, COMPONENT_URL_TEMPLATE, STATION_INFO_URL_TEMPLATE, STATION_LIVE_MODE_URL_TEMPLATE, DEVICE_LIVE_MODE_URL_TEMPLATE, REPORT_URL_TEMPLATE, LAYOUT_POWER_URL_TEMPLATE, DEVICE_WIFI_URL_TEMPLATE, BATTERY_LINKS_URL_TEMPLATE, DEVICE_TEMP_URL_TEMPLATE, DEVICE_UPGRADE_URL_TEMPLATE, METER_BASE_INFO_URL_TEMPLATE, METER_DATA_URL_TEMPLATE, EVSE_DATA_URL_TEMPLATE, EVSE_CHARGE_POWER_URL_TEMPLATE, EVSE_MODE_URL_TEMPLATE, EVSE_INTELLIGENT_VALUE_URL_TEMPLATE, EVSE_POWER_DERATE_URL_TEMPLATE, EVSE_STATE_URL_TEMPLATE, EVSE_PRIORITY_URL_TEMPLATE, METER_CONTROL_URL_TEMPLATE, BATTERY_LED_URL_TEMPLATE, BATTERY_CMD_URL_TEMPLATE, BATTERY_TOGGLE_OFFGRID_URL_TEMPLATE, BATTERY_OFFGRID_URL_TEMPLATE, BATTERY_TOGGLE_FULLCHARGE_DAYS_URL_TEMPLATE, BATTERY_FULLCHARGE_DAYS_URL_TEMPLATE, BATTERY_FULLCHARGE_TIME_URL_TEMPLATE, BATTERY_MIN_SOC_URL_TEMPLATE, BATTERY_POWER_URL_TEMPLATE, BATTERY_MODE_URL_TEMPLATE, BATTERY_MANUAL_MODE_VALUE_URL_TEMPLATE, TOKEN_HEADER, APP_PLATFORM_HEADER
 import logging
 
 _LOGGER = logging.getLogger(__name__)
@@ -369,6 +369,44 @@ class IzyClient:
                 wait = backoff_base * (2 ** (attempt - 1)) + jitter
                 await asyncio.sleep(wait)
 
+    async def async_enable_station_live_mode(self, component_id: int) -> Dict[str, Any]:
+        """Enable fast station data polling for a station."""
+        if not self._token_is_valid():
+            await self.async_login()
+
+        session = async_get_clientsession(self.hass)
+        url = STATION_LIVE_MODE_URL_TEMPLATE.format(component_id=component_id)
+        headers = {TOKEN_HEADER: self._token, "Accept-Language": self._get_language_header(), "app-platform": APP_PLATFORM_HEADER}
+        async with session.post(url, headers=headers, timeout=20) as resp:
+            text = await resp.text()
+            if resp.status == 401:
+                await self.async_login()
+                raise Exception("Unauthorized")
+            if 500 <= resp.status < 600:
+                raise ServerUnavailableError(f"Server returned {resp.status}")
+            if resp.status not in (200, 204):
+                raise Exception(f"HTTP {resp.status}: {text}")
+            return json.loads(text) if text else {}
+
+    async def async_enable_device_live_mode(self, serial_number: str) -> Dict[str, Any]:
+        """Enable fast data for a device."""
+        if not self._token_is_valid():
+            await self.async_login()
+
+        session = async_get_clientsession(self.hass)
+        url = DEVICE_LIVE_MODE_URL_TEMPLATE.format(serial_number=serial_number)
+        headers = {TOKEN_HEADER: self._token, "Accept-Language": self._get_language_header(), "app-platform": APP_PLATFORM_HEADER}
+        async with session.post(url, headers=headers, timeout=20) as resp:
+            text = await resp.text()
+            if resp.status == 401:
+                await self.async_login()
+                raise Exception("Unauthorized")
+            if 500 <= resp.status < 600:
+                raise ServerUnavailableError(f"Server returned {resp.status}")
+            if resp.status not in (200, 204):
+                raise Exception(f"HTTP {resp.status}: {text}")
+            return json.loads(text) if text else {}
+
     async def async_get_report(self, component_id: int, date: str, time_type: str = "day") -> Dict[str, Any]:
         """Fetch report data for a station."""
         max_attempts = 3
@@ -686,6 +724,261 @@ class IzyClient:
                 jitter = random.random() * 0.5
                 wait = backoff_base * (2 ** (attempt - 1)) + jitter
                 await asyncio.sleep(wait)
+
+    async def async_get_meter_data(self, serial_number: str) -> Dict[str, Any]:
+        """Fetch current smart-meter phase data."""
+        max_attempts = 3
+        backoff_base = 1.0
+
+        for attempt in range(1, max_attempts + 1):
+            try:
+                if not self._token_is_valid():
+                    await self.async_login()
+
+                session = async_get_clientsession(self.hass)
+                url = METER_DATA_URL_TEMPLATE.format(serial_number=serial_number)
+                headers = {TOKEN_HEADER: self._token, "Accept-Language": self._get_language_header(), "app-platform": APP_PLATFORM_HEADER}
+                async with session.get(url, headers=headers, timeout=20) as resp:
+                    text = await resp.text()
+                    _LOGGER.debug("Meter data response for SN %s (status %s): %s", serial_number, resp.status, text)
+
+                    if resp.status == 401:
+                        await self.async_login()
+                        raise Exception("Unauthorized")
+                    if 500 <= resp.status < 600:
+                        raise ServerUnavailableError(f"Server returned {resp.status}")
+                    if resp.status != 200:
+                        raise Exception(f"HTTP {resp.status}")
+                    return json.loads(text)
+            except asyncio.TimeoutError:
+                if attempt == max_attempts:
+                    raise ServerUnavailableError("Request timed out after all retries")
+            except ServerUnavailableError:
+                if attempt == max_attempts:
+                    raise
+            except Exception as exc:
+                _LOGGER.debug("Error fetching meter data %s (attempt %s/%s): %s", serial_number, attempt, max_attempts, exc)
+                if attempt == max_attempts:
+                    raise
+
+            if attempt < max_attempts:
+                jitter = random.random() * 0.5
+                await asyncio.sleep(backoff_base * (2 ** (attempt - 1)) + jitter)
+
+    async def async_get_evse_data(self, serial_number: str) -> Dict[str, Any]:
+        """Fetch current EVSE charging data."""
+        max_attempts = 3
+        backoff_base = 1.0
+
+        for attempt in range(1, max_attempts + 1):
+            try:
+                if not self._token_is_valid():
+                    await self.async_login()
+
+                session = async_get_clientsession(self.hass)
+                url = EVSE_DATA_URL_TEMPLATE.format(serial_number=serial_number)
+                headers = {TOKEN_HEADER: self._token, "Accept-Language": self._get_language_header(), "app-platform": APP_PLATFORM_HEADER}
+                async with session.get(url, headers=headers, timeout=20) as resp:
+                    text = await resp.text()
+                    _LOGGER.debug("EVSE data response for SN %s (status %s): %s", serial_number, resp.status, text)
+
+                    if resp.status == 401:
+                        await self.async_login()
+                        raise Exception("Unauthorized")
+                    if 500 <= resp.status < 600:
+                        raise ServerUnavailableError(f"Server returned {resp.status}")
+                    if resp.status != 200:
+                        raise Exception(f"HTTP {resp.status}")
+                    return json.loads(text)
+            except asyncio.TimeoutError:
+                if attempt == max_attempts:
+                    raise ServerUnavailableError("Request timed out after all retries")
+            except ServerUnavailableError:
+                if attempt == max_attempts:
+                    raise
+            except Exception as exc:
+                _LOGGER.debug("Error fetching EVSE data %s (attempt %s/%s): %s", serial_number, attempt, max_attempts, exc)
+                if attempt == max_attempts:
+                    raise
+
+            if attempt < max_attempts:
+                jitter = random.random() * 0.5
+                await asyncio.sleep(backoff_base * (2 ** (attempt - 1)) + jitter)
+
+    async def async_set_evse_charge_power(self, serial_number: str, value: int) -> Dict[str, Any]:
+        """Set EVSE maximum charging power."""
+        if not self._token_is_valid():
+            await self.async_login()
+
+        session = async_get_clientsession(self.hass)
+        url = EVSE_CHARGE_POWER_URL_TEMPLATE.format(serial_number=serial_number)
+        headers = {TOKEN_HEADER: self._token, "Accept-Language": self._get_language_header(), "app-platform": APP_PLATFORM_HEADER}
+        async with session.post(url, json={"value": value}, headers=headers, timeout=20) as resp:
+            text = await resp.text()
+            if resp.status == 401:
+                await self.async_login()
+                raise Exception("Unauthorized")
+            if 500 <= resp.status < 600:
+                raise ServerUnavailableError(f"Server returned {resp.status}")
+            if resp.status not in (200, 204):
+                raise Exception(f"HTTP {resp.status}: {text}")
+            return json.loads(text) if text else {}
+
+    async def async_set_evse_mode(self, serial_number: str, value: int) -> Dict[str, Any]:
+        """Set EVSE control mode."""
+        if not self._token_is_valid():
+            await self.async_login()
+
+        session = async_get_clientsession(self.hass)
+        url = EVSE_MODE_URL_TEMPLATE.format(serial_number=serial_number)
+        headers = {TOKEN_HEADER: self._token, "Accept-Language": self._get_language_header(), "app-platform": APP_PLATFORM_HEADER}
+        async with session.post(url, json={"value": value}, headers=headers, timeout=20) as resp:
+            text = await resp.text()
+            if resp.status == 401:
+                await self.async_login()
+                raise Exception("Unauthorized")
+            if 500 <= resp.status < 600:
+                raise ServerUnavailableError(f"Server returned {resp.status}")
+            if resp.status not in (200, 204):
+                raise Exception(f"HTTP {resp.status}: {text}")
+            return json.loads(text) if text else {}
+
+    async def async_get_evse_intelligent_value(self, serial_number: str) -> Dict[str, Any]:
+        """Fetch EVSE intelligent mode options (enableGrid / enableBattery)."""
+        if not self._token_is_valid():
+            await self.async_login()
+
+        session = async_get_clientsession(self.hass)
+        url = EVSE_INTELLIGENT_VALUE_URL_TEMPLATE.format(serial_number=serial_number)
+        headers = {TOKEN_HEADER: self._token, "Accept-Language": self._get_language_header(), "app-platform": APP_PLATFORM_HEADER}
+        async with session.get(url, headers=headers, timeout=20) as resp:
+            text = await resp.text()
+            _LOGGER.debug("EVSE intelligent value response for SN %s (status %s): %s", serial_number, resp.status, text)
+            if resp.status == 401:
+                await self.async_login()
+                raise Exception("Unauthorized")
+            if 500 <= resp.status < 600:
+                raise ServerUnavailableError(f"Server returned {resp.status}")
+            if resp.status != 200:
+                raise Exception(f"HTTP {resp.status}: {text}")
+            return json.loads(text) if text else {}
+
+    async def async_set_evse_intelligent_value(self, serial_number: str, enable_grid: bool, enable_battery: bool) -> Dict[str, Any]:
+        """Set EVSE intelligent mode options."""
+        if not self._token_is_valid():
+            await self.async_login()
+
+        session = async_get_clientsession(self.hass)
+        url = EVSE_INTELLIGENT_VALUE_URL_TEMPLATE.format(serial_number=serial_number)
+        body = {"enableGrid": enable_grid, "enableBattery": enable_battery}
+        headers = {TOKEN_HEADER: self._token, "Accept-Language": self._get_language_header(), "app-platform": APP_PLATFORM_HEADER}
+        async with session.post(url, json=body, headers=headers, timeout=20) as resp:
+            text = await resp.text()
+            if resp.status == 401:
+                await self.async_login()
+                raise Exception("Unauthorized")
+            if 500 <= resp.status < 600:
+                raise ServerUnavailableError(f"Server returned {resp.status}")
+            if resp.status not in (200, 204):
+                raise Exception(f"HTTP {resp.status}: {text}")
+            return json.loads(text) if text else {}
+
+    async def async_get_evse_power_derate(self, serial_number: str) -> Dict[str, Any]:
+        """Fetch EVSE power derate value."""
+        if not self._token_is_valid():
+            await self.async_login()
+
+        session = async_get_clientsession(self.hass)
+        url = EVSE_POWER_DERATE_URL_TEMPLATE.format(serial_number=serial_number)
+        headers = {TOKEN_HEADER: self._token, "Accept-Language": self._get_language_header(), "app-platform": APP_PLATFORM_HEADER}
+        async with session.get(url, headers=headers, timeout=20) as resp:
+            text = await resp.text()
+            _LOGGER.debug("EVSE power derate response for SN %s (status %s): %s", serial_number, resp.status, text)
+            if resp.status == 401:
+                await self.async_login()
+                raise Exception("Unauthorized")
+            if 500 <= resp.status < 600:
+                raise ServerUnavailableError(f"Server returned {resp.status}")
+            if resp.status != 200:
+                raise Exception(f"HTTP {resp.status}: {text}")
+            return json.loads(text) if text else {}
+
+    async def async_set_evse_power_derate(self, serial_number: str, value: int) -> Dict[str, Any]:
+        """Set EVSE power derate value."""
+        if not self._token_is_valid():
+            await self.async_login()
+
+        session = async_get_clientsession(self.hass)
+        url = EVSE_POWER_DERATE_URL_TEMPLATE.format(serial_number=serial_number)
+        headers = {TOKEN_HEADER: self._token, "Accept-Language": self._get_language_header(), "app-platform": APP_PLATFORM_HEADER}
+        async with session.post(url, json={"value": value}, headers=headers, timeout=20) as resp:
+            text = await resp.text()
+            if resp.status == 401:
+                await self.async_login()
+                raise Exception("Unauthorized")
+            if 500 <= resp.status < 600:
+                raise ServerUnavailableError(f"Server returned {resp.status}")
+            if resp.status not in (200, 204):
+                raise Exception(f"HTTP {resp.status}: {text}")
+            return json.loads(text) if text else {}
+
+    async def async_set_evse_state(self, serial_number: str, value: bool) -> Dict[str, Any]:
+        """Start or stop the EVSE."""
+        if not self._token_is_valid():
+            await self.async_login()
+
+        session = async_get_clientsession(self.hass)
+        url = EVSE_STATE_URL_TEMPLATE.format(serial_number=serial_number)
+        headers = {TOKEN_HEADER: self._token, "Accept-Language": self._get_language_header(), "app-platform": APP_PLATFORM_HEADER}
+        async with session.post(url, json={"value": value}, headers=headers, timeout=20) as resp:
+            text = await resp.text()
+            if resp.status == 401:
+                await self.async_login()
+                raise Exception("Unauthorized")
+            if 500 <= resp.status < 600:
+                raise ServerUnavailableError(f"Server returned {resp.status}")
+            if resp.status not in (200, 204):
+                raise Exception(f"HTTP {resp.status}: {text}")
+            return json.loads(text) if text else {}
+
+    async def async_get_evse_priority(self, station_id: int) -> Dict[str, Any]:
+        """Fetch EVSE charging priority for a station."""
+        if not self._token_is_valid():
+            await self.async_login()
+
+        session = async_get_clientsession(self.hass)
+        url = EVSE_PRIORITY_URL_TEMPLATE.format(station_id=station_id)
+        headers = {TOKEN_HEADER: self._token, "Accept-Language": self._get_language_header(), "app-platform": APP_PLATFORM_HEADER}
+        async with session.get(url, headers=headers, timeout=20) as resp:
+            text = await resp.text()
+            _LOGGER.debug("EVSE priority response for station %s (status %s): %s", station_id, resp.status, text)
+            if resp.status == 401:
+                await self.async_login()
+                raise Exception("Unauthorized")
+            if 500 <= resp.status < 600:
+                raise ServerUnavailableError(f"Server returned {resp.status}")
+            if resp.status != 200:
+                raise Exception(f"HTTP {resp.status}: {text}")
+            return json.loads(text) if text else {}
+
+    async def async_set_evse_priority(self, station_id: int, value: bool) -> Dict[str, Any]:
+        """Set EVSE charging priority for a station."""
+        if not self._token_is_valid():
+            await self.async_login()
+
+        session = async_get_clientsession(self.hass)
+        url = EVSE_PRIORITY_URL_TEMPLATE.format(station_id=station_id)
+        headers = {TOKEN_HEADER: self._token, "Accept-Language": self._get_language_header(), "app-platform": APP_PLATFORM_HEADER}
+        async with session.post(url, json={"value": value}, headers=headers, timeout=20) as resp:
+            text = await resp.text()
+            if resp.status == 401:
+                await self.async_login()
+                raise Exception("Unauthorized")
+            if 500 <= resp.status < 600:
+                raise ServerUnavailableError(f"Server returned {resp.status}")
+            if resp.status not in (200, 204):
+                raise Exception(f"HTTP {resp.status}: {text}")
+            return json.loads(text) if text else {}
 
     async def async_set_meter_control(self, serial_number: str, is_control: bool, feed_threshold: int) -> Dict[str, Any]:
         """Set meter injection control settings."""

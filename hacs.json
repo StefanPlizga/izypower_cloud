@@ -1,6 +1,6 @@
 {
-  "name": "Izypower Cloud",
-  "homeassistant": "2026.1.0",
+  "name": "Isypower Cloud",
+  "homeassistant": "2026.6.0",
   "render_readme": true,
   "country": ["FR"]
 }

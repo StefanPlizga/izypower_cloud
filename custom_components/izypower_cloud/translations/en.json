@@ -2,8 +2,8 @@
   "config": {
     "step": {
       "user": {
-        "title": "Izypower Cloud: Configure",
-        "description": "Enter your Izypower Cloud credentials and settings.",
+        "title": "Isypower Cloud: Configure",
+        "description": "Enter your Isypower Cloud credentials and settings.",
         "data": {
           "username": "Username",
           "password": "Password",
@@ -11,8 +11,8 @@
         }
       },
       "reauth_confirm": {
-        "title": "Reauthenticate Izypower Cloud",
-        "description": "Your Izypower Cloud credentials need to be updated. Enter your username and password.",
+        "title": "Reauthenticate Isypower Cloud",
+        "description": "Your Isypower Cloud credentials need to be updated. Enter your username and password.",
         "data": {
           "username": "Username",
           "password": "Password"
@@ -21,7 +21,7 @@
     },
     "error": {
       "invalid_auth": "Invalid username or password",
-      "cannot_connect": "Unable to connect to Izypower Cloud",
+      "cannot_connect": "Unable to connect to Isypower Cloud",
       "duplicate_username": "This username is already configured. Only one integration per account is allowed.",
       "refresh_period_too_low": "Refresh period must be at least 3 minutes"
     }
@@ -29,7 +29,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Izypower Cloud: Options",
+        "title": "Isypower Cloud: Options",
         "description": "Configure refresh period settings.",
         "data": {
           "refresh_period": "Refresh period (minutes)"
@@ -38,7 +38,7 @@
     },
     "error": {
       "invalid_auth": "Invalid username or password",
-      "cannot_connect": "Unable to connect to Izypower Cloud",
+      "cannot_connect": "Unable to connect to Isypower Cloud",
       "refresh_period_too_low": "Refresh period must be at least 3 minutes"
     }
   },
@@ -64,6 +64,46 @@
       },
       "production_power": {
         "name": "PV Production"
+      },
+      "meter_ct_apparent_power": {
+        "name": "Apparent power"
+      },
+      "meter_ct_current": {
+        "name": "Current"
+      },
+      "meter_ct_voltage": {
+        "name": "Voltage"
+      },
+      "meter_ct_mode": {
+        "name": "Mode",
+        "state": {
+          "consumption": "Consumption",
+          "production": "Production"
+        }
+      },
+      "ev_day": {
+        "name": "Charging station Day"
+      },
+      "ev_month": {
+        "name": "Charging station Month"
+      },
+      "ev_year": {
+        "name": "Charging station Year"
+      },
+      "ev_total": {
+        "name": "Charging station Total"
+      },
+      "ev_rate_all": {
+        "name": "Charging station Rate Total"
+      },
+      "ev_rate_day": {
+        "name": "Charging station Rate Day"
+      },
+      "ev_rate_month": {
+        "name": "Charging station Rate Month"
+      },
+      "ev_rate_year": {
+        "name": "Charging station Rate Year"
       },
       "production_month": {
         "name": "Production Current Month"
@@ -335,6 +375,21 @@
       }
     },
     "switch": {
+      "live_mode": {
+        "name": "Live Mode"
+      },
+      "evse_priority": {
+        "name": "Priority charging station"
+      },
+      "evse_started": {
+        "name": "Started"
+      },
+      "evse_enable_grid": {
+        "name": "Start with grid (Intelligent)"
+      },
+      "evse_enable_battery": {
+        "name": "Use battery (Intelligent)"
+      },
       "injection_control": {
         "name": "Injection Blocking"
       },
@@ -346,6 +401,12 @@
       }
     },
     "number": {
+      "evse_power_derate": {
+        "name": "Derate"
+      },
+      "evse_max_charging_power": {
+        "name": "Charging power"
+      },
       "injection_limit": {
         "name": "Injection Limit"
       },
@@ -369,6 +430,14 @@
       }
     },
     "select": {
+      "evse_control_mode": {
+        "name": "Control Mode",
+        "state": {
+          "0": "Intelligent",
+          "1": "Manual",
+          "2": "Hybrid"
+        }
+      },
       "battery_control_mode": {
         "name": "Control Mode",
         "state": {

@@ -26,8 +26,8 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up Izypower Cloud select entities."""
-    _LOGGER.info("Setting up select platform for Izypower Cloud")
+    """Set up Isypower Cloud select entities."""
+    _LOGGER.info("Setting up select platform for Isypower Cloud")
     data = hass.data[DOMAIN][entry.entry_id]
     coordinator = data["coordinator"]
     client = data["client"]
@@ -48,12 +48,19 @@ async def async_setup_entry(
             device_page_data = stations_devices[station_id]
             device_records = device_page_data.get("data", {}).get("records", [])
             battery_cmd_dict = stations_devices[station_id].get("battery_cmd", {})
+            evse_cmd_dict = stations_devices[station_id].get("evse_cmd", {})
             
             for device_record in device_records:
                 device_type = device_record.get("deviceType")
                 device_id = device_record.get("deviceId")
-                device_sn = device_record.get("sn")
+                device_sn = device_record.get("sn") or device_record.get("serialNumber")
                 device_name = device_record.get("deviceName", "Unknown")
+
+                if device_type == "evse" and device_id and device_sn and _get_by_device_id(evse_cmd_dict, device_id) is not None:
+                    entities.append(EVSEControlModeSelect(
+                        coordinator, client, station_id, station_name,
+                        device_id, device_sn, device_name,
+                    ))
                 
                 # Battery control mode select - only for master (1000) or standalone (1002) mode
                 battery_cmd_for_device = _get_by_device_id(battery_cmd_dict, device_id) if device_id else None
@@ -136,6 +143,75 @@ async def async_setup_entry(
                     )
     
     async_add_entities(entities)
+
+
+class EVSEControlModeSelect(CoordinatorEntity, SelectEntity):
+    """Select entity for EVSE control mode."""
+
+    has_entity_name = True
+
+    def __init__(self, coordinator, client, station_id: int, station_name: str,
+                 device_id: int, device_sn: str, device_name: str):
+        super().__init__(coordinator)
+        self._client = client
+        self._station_id = station_id
+        self._station_name = station_name
+        self._device_id = device_id
+        self._device_sn = device_sn
+        self._device_name = device_name
+        self._attr_unique_id = f"{ENTITY_ID_PREFIX}_device_{device_id}_evse_control_mode"
+        self._attr_translation_key = "evse_control_mode"
+
+    @property
+    def device_info(self):
+        return {"identifiers": {(DOMAIN, f"{ENTITY_ID_PREFIX}_device_{self._device_id}")}}
+
+    def _get_command_data(self) -> dict:
+        coordinator_data = self.coordinator.data or {}
+        station_devices = coordinator_data.get("stations_devices", {}).get(self._station_id, {})
+        return _get_by_device_id(station_devices.get("evse_cmd", {}), self._device_id) or {}
+
+    @property
+    def options(self) -> list[str]:
+        """Return mode options allowed by the EVSE meter capability."""
+        has_meter = self._get_command_data().get("data", {}).get("hasMeter", False)
+        return ["0", "1", "2"] if has_meter is True else ["1", "2"]
+
+    @property
+    def current_option(self) -> str | None:
+        value = self._get_command_data().get("data", {}).get("controlMode")
+        return str(value) if value is not None else None
+
+    @property
+    def available(self) -> bool:
+        return self.coordinator.last_update_success and bool(self._get_command_data())
+
+    async def async_select_option(self, option: str) -> None:
+        try:
+            if option == "0" and self.options != ["0", "1", "2"]:
+                _LOGGER.warning(
+                    "Ignoring EVSE Intelligent mode for %s because hasMeter is false",
+                    self._device_sn,
+                )
+                return
+            await self._client.async_set_evse_mode(
+                serial_number=self._device_sn,
+                value=int(option),
+            )
+            command_data = await self._client.async_get_battery_cmd(serial_number=self._device_sn)
+            data = dict(self.coordinator.data or {})
+            stations_devices = dict(data.get("stations_devices", {}))
+            station_devices = dict(stations_devices.get(self._station_id, {}))
+            evse_cmd = dict(station_devices.get("evse_cmd", {}))
+            evse_cmd[self._device_id] = command_data
+            station_devices["evse_cmd"] = evse_cmd
+            stations_devices[self._station_id] = station_devices
+            data["stations_devices"] = stations_devices
+            self.coordinator.async_set_updated_data(data)
+        except ServerUnavailableError as exc:
+            _LOGGER.info("Server temporarily unavailable when setting EVSE mode: %s", exc)
+        except Exception as exc:
+            _LOGGER.error("Failed to set EVSE mode for %s: %s", self._device_sn, exc)
 
 
 class BatteryControlModeSelect(CoordinatorEntity, SelectEntity):

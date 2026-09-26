@@ -1,4 +1,4 @@
-# Intégration Izypower Cloud pour Home Assistant
+# Intégration Isypower Cloud (Materfrance) pour Home Assistant
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Default-green.svg?style=for-the-badge)](https://github.com/hacs/integration)
 [![GitHub release](https://img.shields.io/github/release/StefanPlizga/izypower_cloud.svg?style=for-the-badge)](https://github.com/StefanPlizga/izypower_cloud/releases)
@@ -9,9 +9,9 @@
 
 [English version](README.en.md)
 
-Cette intégration personnalisée découvre automatiquement toutes les centrales photovoltaïques Izypower Cloud et fournit une surveillance complète de votre installation solaire.
+Cette intégration personnalisée découvre automatiquement toutes les centrales photovoltaïques Isypower Cloud (Materfrance) et fournit une surveillance complète de votre installation solaire.
 
-**Il faut disposer d'un compte Izypower pour faire fonctionner cette intégration, seuls les appareils de la gamme Izypower de Materfrance sont supportés par cette intégration.**
+**Il faut disposer d'un compte Isypower pour faire fonctionner cette intégration, seuls les appareils de la gamme Isypower de Materfrance sont supportés par cette intégration.**
 
 > **Note importante** : Cette intégration est un projet communautaire et n'est pas développée par Materfrance.
 
@@ -21,10 +21,12 @@ Merci à Khirale, MarcoCMG, Wellgo et Zyos67 pour leurs tests et retours.
 
 ## Installation
 
+> **Note de compatibilité** : L'intégration est nommée Isypower Cloud depuis la fin du mois de septembre 2026, mais le domaine technique de l'intégration Home Assistant reste `izypower_cloud` afin de conserver les installations, entités, appareils et historiques de statistiques existants sans reconfiguration.
+
 ### Via HACS (Recommandé)
 
 1. Assurez-vous que [HACS](https://hacs.xyz/) est installé dans votre instance Home Assistant
-2. Recherchez "Izypower Cloud" dans HACS et cliquez sur "Télécharger"
+2. Recherchez "Isypower Cloud" dans HACS et cliquez sur "Télécharger"
 3. Redémarrez Home Assistant
 4. Cliquez sur le bouton ci-dessous pour ajouter l'intégration :
 
@@ -32,7 +34,7 @@ Merci à Khirale, MarcoCMG, Wellgo et Zyos67 pour leurs tests et retours.
 
    Ou manuellement :
    - Allez dans Paramètres > Appareils et services > Ajouter une intégration
-   - Recherchez "Izypower Cloud" et suivez les étapes de configuration
+   - Recherchez "Isypower Cloud" et suivez les étapes de configuration
 
 ### Installation Manuelle
 
@@ -41,16 +43,16 @@ Merci à Khirale, MarcoCMG, Wellgo et Zyos67 pour leurs tests et retours.
 3. Si le dossier `custom_components` n'existe pas, créez-le à la racine de votre configuration Home Assistant
 4. Redémarrez Home Assistant
 5. Allez dans Paramètres > Appareils et services > Ajouter une intégration
-6. Recherchez "Izypower Cloud" et suivez les étapes de configuration
+6. Recherchez "Isypower Cloud" et suivez les étapes de configuration
 
 ## Configuration
 
 - Ajoutez l'intégration via l'interface utilisateur de Home Assistant
-- Entrez votre `nom d'utilisateur` et `mot de passe` Izypower Cloud
+- Entrez votre `nom d'utilisateur` et `mot de passe` Isypower Cloud
 - Optionnel : Définissez la `période de rafraîchissement` en minutes (par défaut : 3 minutes)
 - Après la configuration, vous pouvez modifier la `période de rafraîchissement` depuis le menu Options de l'intégration
 
-> **Note** : La période de rafraîchissement par défaut est de 3 minutes car les données proviennent du cloud Izypower et sont mises à jour dans le cloud toutes les 3 minutes. Il n'est donc pas nécessaire de rafraîchir plus fréquemment. Les données ne sont pas en temps réel, tout comme dans l'application Izypower Cloud.
+> **Note** : La période de rafraîchissement par défaut est de 3 minutes car les données proviennent du cloud Isypower et sont mises à jour dans le cloud toutes les 3 minutes. Il n'est donc pas nécessaire de rafraîchir plus fréquemment. Les données ne sont pas en temps réel, tout comme dans l'application Isypower Cloud.
 
 ## Configuration du dashboard Energie
 
@@ -60,14 +62,14 @@ Les statistiques à configurer dans le dashboard Energie sont :
 - **Panneaux solaires** : cherchez la statistique se terminant par `Production Stats`. Le capteur de puissance reste inchangé, à savoir `Puissance PV`.
 - **Batterie de stockage domestique** : cherchez la statistique se terminant par `Batterie Charge Stats` pour la charge et `Batterie Decharge Stats` pour la décharge. Le capteur de puissance reste inchangé, à savoir `Puissance Batterie` (en mode inversé).
 
-Les statistiques créées récupèrent les données des capteurs d'énergie afin de conserver l'historique de consommation/production de l'écosystème Izypower dans le dashboard Energie. Cela permet de supprimer du dashboard Energie les précédents capteurs.
+Les statistiques créées récupèrent les données des capteurs d'énergie afin de conserver l'historique de consommation/production de l'écosystème Isypower dans le dashboard Energie. Cela permet de supprimer du dashboard Energie les précédents capteurs.
 
 Il faut attendre quelques minutes après la mise à jour de l'intégration pour que l'historique soit recopié depuis les capteurs d'énergie vers les statistiques (pour ceux ayant déjà un historique de l'intégration). La mise à jour des statistiques se fait ensuite toutes les heures, environ 10 minutes après le début de chaque heure.
 
 ## Fonctionnalités
 
 ### Découverte Automatique
-- Toutes les centrales photovoltaïques de votre compte Izypower Cloud sont automatiquement découvertes
+- Toutes les centrales photovoltaïques de votre compte Isypower Cloud sont automatiquement découvertes
 - Chaque centrale est créée en tant qu'appareil avec tous les capteurs associés
 - Des sous-appareils sont créés pour les onduleurs et autres équipements
 
@@ -191,7 +193,7 @@ Pour tous les appareils de batterie, les contrôles suivants sont disponibles :
 
 ### Fonctionnalités Techniques
 
-- Polling Cloud : Récupération des données via API Izypower Cloud
+- Polling Cloud : Récupération des données via API Isypower Cloud
 - Configuration via config flow et options flow Home Assistant
 - Période de rafraîchissement personnalisable
 - Découverte automatique des centrales et équipements

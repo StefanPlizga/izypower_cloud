@@ -8,12 +8,21 @@ from homeassistant.util import dt as dt_util
 
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
 from homeassistant.const import UnitOfEnergy, UnitOfPower
+from homeassistant.helpers import device_registry
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.entity import EntityCategory
 
 from .const import DOMAIN, ENTITY_ID_PREFIX, DISPLAY_NAME_PREFIX
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _get_device_registry_id(coordinator, identifier: str) -> str | None:
+    """Return the Home Assistant device registry id for an integration identifier."""
+    device = device_registry.async_get(coordinator.hass).async_get_device_by_identifier(
+        DOMAIN, identifier
+    )
+    return device.id if device else None
 
 
 # Base classes for factorization
@@ -320,6 +329,37 @@ class DeviceDataDtoSensor(DeviceBaseSensor):
         return None
 
 
+class EVSEPowerSensor(DeviceBaseSensor):
+    """Sensor for a smart EV charging station power value."""
+
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
+    _attr_entity_category = None
+    _attr_has_entity_name = False
+
+    def __init__(self, coordinator, station_id: int, station_name: str, device_record: dict,
+                 field_name: str, french_name: str, english_name: str):
+        super().__init__(coordinator, station_id, station_name, device_record)
+        self._field_name = field_name
+        language = (self.coordinator.hass.config.language or "en").lower()
+        localized_name = french_name if language.startswith("fr") else english_name
+        self._attr_unique_id = f"{ENTITY_ID_PREFIX}_device_{self._device_id}_evse_{field_name}"
+        self._attr_name = (
+            f"{DISPLAY_NAME_PREFIX} {self._station_name} ({self._station_id}) - "
+            f"{self._device_name} {localized_name}"
+        )
+
+    def _get_evse_data(self) -> dict:
+        coordinator_data = self.coordinator.data or {}
+        station_devices = coordinator_data.get("stations_devices", {}).get(self._station_id, {})
+        return station_devices.get("evse_data", {}).get(self._device_id, {})
+
+    @property
+    def native_value(self):
+        return self._get_evse_data().get("data", {}).get(self._field_name)
+
+
 class DeviceWiFiDataSensor(DeviceBaseSensor):
     """Base class for device sensors reading from WiFi data."""
     
@@ -544,14 +584,20 @@ class BatteryLinkSOCSensor(BatteryLinksBaseSensor):
     @property
     def device_info(self):
         """Return device information for this battery link."""
-        return {
+        info = {
             "identifiers": {(DOMAIN, f"{ENTITY_ID_PREFIX}_battery_link_{self._link_sn}")},
             "name": f"{DISPLAY_NAME_PREFIX} {self._station_name} ({self._station_id}) - {self._parent_device_name} Link {self._link_sn}",
             "manufacturer": DISPLAY_NAME_PREFIX,
             "model": "Battery Link",
             "serial_number": self._link_sn,
-            "via_device": (DOMAIN, f"{ENTITY_ID_PREFIX}_device_{self._device_id}"),
         }
+        via_device_id = _get_device_registry_id(
+            self.coordinator,
+            f"{ENTITY_ID_PREFIX}_device_{self._device_id}",
+        )
+        if via_device_id:
+            info["via_device_id"] = via_device_id
+        return info
     
     @property
     def native_value(self):
@@ -836,8 +882,12 @@ BATTERY_SENSORS_CONFIG = [
 ]
 
 
-def _create_station_sensors(coordinator, station_id: int, station_name: str, station_info: dict, entities: list):
+def _create_station_sensors(coordinator, live_mode, station_id: int, station_name: str, station_info: dict, entities: list):
     """Create all station-level sensors."""
+    entities.append(StationDirectFieldSensor(
+        coordinator, station_id, station_name, "ev_power", "ev_power",
+        SensorDeviceClass.POWER, "W", SensorStateClass.MEASUREMENT
+    ))
     extra_data = station_info.get("extraData", {})
     if not extra_data:
         return
@@ -893,6 +943,13 @@ def _create_station_sensors(coordinator, station_id: int, station_name: str, sta
     entities.append(StationReportEnergySensor(coordinator, station_id, station_name, "year", "storage_out", "battery_year_discharge"))
     entities.append(StationReportEnergySensor(coordinator, station_id, station_name, "all", "storage_in", "battery_total_charge"))
     entities.append(StationReportEnergySensor(coordinator, station_id, station_name, "all", "storage_out", "battery_total_discharge"))
+
+    # Charging station energy sensors from report data
+    for time_type in ["day", "month", "year", "all"]:
+        period_suffix = "total" if time_type == "all" else time_type
+        entities.append(StationReportEnergySensor(
+            coordinator, station_id, station_name, time_type, "ev", f"ev_{period_suffix}"
+        ))
     
     # Create rate sensors from report data for each time type
     for time_type in ["all", "day", "month", "year"]:
@@ -903,10 +960,11 @@ def _create_station_sensors(coordinator, station_id: int, station_name: str, sta
         entities.append(StationRateSensor(coordinator, station_id, station_name, time_type, "storage_out_rate", "storage_out_rate"))
         entities.append(StationRateSensor(coordinator, station_id, station_name, time_type, "consumption_rate", "consumption_rate"))
         entities.append(StationRateSensor(coordinator, station_id, station_name, time_type, "meter_energy_n_rate", "meter_energy_n_rate"))
+        entities.append(StationRateSensor(coordinator, station_id, station_name, time_type, "ev_rate", "ev_rate"))
 
 
 def _create_device_sensors(coordinator, station_id: int, station_name: str, device_record: dict, 
-                           device_type_mapping: dict, entities: list) -> dict:
+                           device_type_mapping: dict, live_mode, entities: list) -> dict:
     """Create device-level sensors and return device_by_sn mapping."""
     device_id = device_record.get("deviceId")
     device_name = device_record.get("deviceName", f"Device {device_id}")
@@ -914,6 +972,16 @@ def _create_device_sensors(coordinator, station_id: int, station_name: str, devi
     if not device_id:
         _LOGGER.warning("Skipping device record without deviceId: %s", device_record)
         return {}
+
+    if device_record.get("deviceType") == "evse":
+        entities.append(EVSEPowerSensor(
+            coordinator, station_id, station_name, device_record,
+            "ac_power", "Arrivée AC", "AC Input",
+        ))
+        entities.append(EVSEPowerSensor(
+            coordinator, station_id, station_name, device_record,
+            "power", "Puissance en charge", "Charging power",
+        ))
     
     _LOGGER.debug(
         "Creating child device: %s (ID: %s, type: %s) for station %s with mapping: %s", 
@@ -1051,47 +1119,43 @@ async def _create_pv_sensors(client, coordinator, station_id: int, station_name:
     except Exception as exc:
         _LOGGER.warning("Failed to fetch component data for station %s (ID: %s): %s", station_name, station_id, exc)
 
-    # Create CT sensors (ct*) from latest layout power extra node.
-    coordinator_data = coordinator.data or {}
-    station_layout = coordinator_data.get("stations_layout_power", {}).get(station_id, {})
-    layout_rows = station_layout.get("data", {}).get("data", [])
-
-    latest_extra = []
-    for row in reversed(layout_rows):
-        extra = row.get("extra", [])
-        if isinstance(extra, list) and extra:
-            latest_extra = extra
-            break
-
-    created_ct_keys = set()
-    for item in latest_extra:
-        item_pv = (item.get("pv") or "").lower()
-        if not item_pv.startswith("ct"):
+    # Create exactly three CT sensors for each discovered smart meter.
+    for device_record in device_by_sn.values():
+        if device_record.get("deviceType") != "meter":
             continue
 
-        item_sn = item.get("deviceSn") or item.get("deviceSN")
-        if not item_sn:
+        device_id = device_record.get("deviceId")
+        if not device_id:
             continue
 
-        device_record = device_by_sn.get(item_sn)
-        if not device_record:
-            _LOGGER.debug("No device found for CT data with SN: %s, pv: %s", item_sn, item_pv)
-            continue
-
-        ct_key = (item_sn, item_pv)
-        if ct_key in created_ct_keys:
-            continue
-
-        created_ct_keys.add(ct_key)
-        entities.append(DeviceCTPowerSensor(coordinator, station_id, station_name, device_record, item_pv))
-        _LOGGER.debug("Creating CT sensor %s for device %s (SN: %s)", item_pv.upper(), device_record.get("deviceName", "Unknown"), item_sn)
+        for item_index in range(3):
+            entities.append(MeterCTPowerSensor(
+                coordinator, station_id, station_name, device_record, item_index
+            ))
+            entities.append(MeterCTAttributeSensor(
+                coordinator, station_id, station_name, device_record, item_index,
+                "apparent_power", "Puissance apparente", "Apparent power", "VA",
+            ))
+            entities.append(MeterCTAttributeSensor(
+                coordinator, station_id, station_name, device_record, item_index,
+                "current", "Courant", "Current", "A",
+            ))
+            entities.append(MeterCTAttributeSensor(
+                coordinator, station_id, station_name, device_record, item_index,
+                "voltage", "Tension", "Voltage", "V",
+            ))
+            entities.append(MeterCTAttributeSensor(
+                coordinator, station_id, station_name, device_record, item_index,
+                "mode", "Mode", "Mode", None,
+            ))
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
-    """Set up Izypower Cloud sensors."""
+    """Set up Isypower Cloud sensors."""
     data = hass.data[DOMAIN][entry.entry_id]
     coordinator = data.get("coordinator")
     client = data.get("client")
+    live_mode = data.get("live_mode")
     
     entities = []
     
@@ -1131,7 +1195,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
         _LOGGER.debug("Complete device type mapping for station %s: %s", station_name, device_type_mapping)
         
         # Create station sensors
-        _create_station_sensors(coordinator, station_id, station_name, station_info, entities)
+        _create_station_sensors(coordinator, live_mode, station_id, station_name, station_info, entities)
         
         # Query DEVICE_PAGE_URL for this station to get child devices
         try:
@@ -1151,7 +1215,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
             device_by_sn = {}
             
             for device_record in device_records:
-                sn_mapping = _create_device_sensors(coordinator, station_id, station_name, device_record, device_type_mapping, entities)
+                sn_mapping = _create_device_sensors(coordinator, station_id, station_name, device_record, device_type_mapping, live_mode, entities)
                 device_by_sn.update(sn_mapping)
             
             # Create battery link sub-devices from coordinator data
@@ -1241,15 +1305,21 @@ class DeviceOnlineStateSensor(DeviceBaseSensor):
         """Return device information for this online state sensor."""
         device_type_name = self._device_type_mapping.get(self._device_type_code, self._device_type_code)
         
-        return {
+        info = {
             "identifiers": {(DOMAIN, f"{ENTITY_ID_PREFIX}_device_{self._device_id}")},
             "name": f"{DISPLAY_NAME_PREFIX} {self._station_name} ({self._station_id}) - {self._device_name}",
             "manufacturer": DISPLAY_NAME_PREFIX,
             "model": device_type_name,
             "sw_version": self._device_sw_version,
             "serial_number": self._device_sn,
-            "via_device": (DOMAIN, f"{ENTITY_ID_PREFIX}_station_{self._station_id}"),
         }
+        via_device_id = _get_device_registry_id(
+            self.coordinator,
+            f"{ENTITY_ID_PREFIX}_station_{self._station_id}",
+        )
+        if via_device_id:
+            info["via_device_id"] = via_device_id
+        return info
     
     @property
     def native_value(self):
@@ -1341,6 +1411,94 @@ class DeviceCTPowerSensor(DeviceBaseSensor):
                 return item.get("dataVal")
 
         return None
+
+
+class MeterCTPowerSensor(DeviceBaseSensor):
+    """Sensor for a smart-meter phase from the meter data endpoint."""
+
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = "W"
+    _attr_has_entity_name = False
+    _attr_entity_category = None
+
+    def __init__(self, coordinator, station_id: int, station_name: str, device_record: dict, item_index: int):
+        super().__init__(coordinator, station_id, station_name, device_record)
+        self._item_index = item_index
+        self._attr_unique_id = f"{ENTITY_ID_PREFIX}_device_{self._device_id}_ct{item_index + 1}"
+        power_label = "Puissance" if (self.coordinator.hass.config.language or "en").lower().startswith("fr") else "Power"
+        self._attr_name = (
+            f"{DISPLAY_NAME_PREFIX} {self._station_name} ({self._station_id}) - "
+            f"{self._device_name} CT{item_index + 1} - {power_label}"
+        )
+
+    def _get_meter_data(self) -> dict:
+        coordinator_data = self.coordinator.data or {}
+        station_devices = coordinator_data.get("stations_devices", {}).get(self._station_id, {})
+        return station_devices.get("meter_data", {}).get(self._device_id, {})
+
+    @property
+    def native_value(self):
+        items = self._get_meter_data().get("data", {}).get("items", [])
+        if self._item_index >= len(items):
+            return None
+        return items[self._item_index].get("power")
+
+
+class MeterCTAttributeSensor(DeviceBaseSensor):
+    """Sensor for an additional smart-meter CT item attribute."""
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_has_entity_name = False
+    _attr_entity_category = None
+
+    def __init__(
+        self, coordinator, station_id: int, station_name: str, device_record: dict,
+        item_index: int, attribute: str, french_name: str, english_name: str, unit: str | None,
+    ):
+        super().__init__(coordinator, station_id, station_name, device_record)
+        self._item_index = item_index
+        self._attribute = attribute
+        self._attr_unique_id = f"{ENTITY_ID_PREFIX}_device_{self._device_id}_ct{item_index + 1}_{attribute}"
+        language = (self.coordinator.hass.config.language or "en").lower()
+        localized_name = french_name if language.startswith("fr") else english_name
+        self._attr_name = (
+            f"{DISPLAY_NAME_PREFIX} {self._station_name} ({self._station_id}) - "
+            f"{self._device_name} CT{item_index + 1} - {localized_name}"
+        )
+        self._attr_native_unit_of_measurement = unit
+        if attribute == "current":
+            self._attr_device_class = SensorDeviceClass.CURRENT
+        elif attribute == "voltage":
+            self._attr_device_class = SensorDeviceClass.VOLTAGE
+        elif attribute == "mode":
+            self._attr_device_class = SensorDeviceClass.ENUM
+            self._attr_state_class = None
+            self._attr_options = ["consumption", "production"]
+            self._attr_translation_key = "meter_ct_mode"
+
+    def _get_meter_data(self) -> dict:
+        coordinator_data = self.coordinator.data or {}
+        station_devices = coordinator_data.get("stations_devices", {}).get(self._station_id, {})
+        return station_devices.get("meter_data", {}).get(self._device_id, {})
+
+    @property
+    def native_value(self):
+        items = self._get_meter_data().get("data", {}).get("items", [])
+        if self._item_index >= len(items):
+            return None
+        value = items[self._item_index].get(self._attribute)
+        if self._attribute == "mode":
+            try:
+                value = int(value)
+            except (TypeError, ValueError):
+                return None
+            if value == 0:
+                return "consumption"
+            if value == 1:
+                return "production"
+            return None
+        return value
 
 
 

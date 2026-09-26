@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta
 import logging
 
@@ -8,12 +9,333 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN, DEFAULT_SCAN_INTERVAL
+from .const import DOMAIN, DEFAULT_SCAN_INTERVAL, STATION_INFO_URL_TEMPLATE, BATTERY_LINKS_URL_TEMPLATE, METER_DATA_URL_TEMPLATE, EVSE_DATA_URL_TEMPLATE
 from .client import IzyClient, ServerUnavailableError
 from .statistics import async_insert_hourly_statistics_from_report
 
 _LOGGER = logging.getLogger(__name__)
 #_LOGGER.disabled = True
+
+
+class LiveModeManager:
+    """Manage station-scoped live mode without changing the normal poll interval."""
+
+    _RENEW_INTERVAL = 90
+
+    def __init__(self, hass: HomeAssistant, client: IzyClient, coordinator: DataUpdateCoordinator):
+        self.hass = hass
+        self.client = client
+        self.coordinator = coordinator
+        self._active_until: dict[int, float] = {}
+        self._active_batteries: dict[tuple[int, int], tuple[float, list[tuple[int, str]]]] = {}
+        self._active_meters: dict[tuple[int, int], tuple[float, str]] = {}
+        self._active_evses: dict[tuple[int, int], tuple[float, str]] = {}
+        self._station_renew_tasks: dict[int, asyncio.Task] = {}
+        self._battery_renew_tasks: dict[tuple[int, int], asyncio.Task] = {}
+        self._meter_renew_tasks: dict[tuple[int, int], asyncio.Task] = {}
+        self._evse_renew_tasks: dict[tuple[int, int], asyncio.Task] = {}
+        self._task = hass.async_create_background_task(
+            self._poll(), f"{DOMAIN}_live_mode_poll"
+        )
+
+    def is_active(self, station_id: int) -> bool:
+        return station_id in self._active_until
+
+    def is_battery_active(self, station_id: int, device_id: int) -> bool:
+        return (station_id, device_id) in self._active_batteries
+
+    def is_meter_active(self, station_id: int, device_id: int) -> bool:
+        return (station_id, device_id) in self._active_meters
+
+    def is_evse_active(self, station_id: int, device_id: int) -> bool:
+        return (station_id, device_id) in self._active_evses
+
+    async def activate(self, station_id: int) -> None:
+        await self.client.async_enable_station_live_mode(component_id=station_id)
+        self._active_until[station_id] = self.hass.loop.time() + 120
+        if station_id not in self._station_renew_tasks:
+            self._station_renew_tasks[station_id] = self.hass.async_create_background_task(
+                self._renew_station(station_id), f"{DOMAIN}_station_{station_id}_live_mode_renew"
+            )
+        self.coordinator.async_set_updated_data(dict(self.coordinator.data or {}))
+
+    async def deactivate(self, station_id: int) -> None:
+        self._active_until.pop(station_id, None)
+        task = self._station_renew_tasks.pop(station_id, None)
+        if task:
+            task.cancel()
+        self.coordinator.async_set_updated_data(dict(self.coordinator.data or {}))
+
+    async def activate_battery(self, station_id: int, device_id: int, batteries: list[tuple[int, str]]) -> None:
+        for _, serial_number in batteries:
+            await self.client.async_enable_device_live_mode(serial_number=serial_number)
+        self._active_batteries[(station_id, device_id)] = (self.hass.loop.time() + 120, batteries)
+        key = (station_id, device_id)
+        if key not in self._battery_renew_tasks:
+            self._battery_renew_tasks[key] = self.hass.async_create_background_task(
+                self._renew_battery(key), f"{DOMAIN}_battery_{device_id}_live_mode_renew"
+            )
+        self.coordinator.async_set_updated_data(dict(self.coordinator.data or {}))
+
+    async def deactivate_battery(self, station_id: int, device_id: int) -> None:
+        key = (station_id, device_id)
+        self._active_batteries.pop(key, None)
+        task = self._battery_renew_tasks.pop(key, None)
+        if task:
+            task.cancel()
+        self.coordinator.async_set_updated_data(dict(self.coordinator.data or {}))
+
+    async def activate_meter(self, station_id: int, device_id: int, serial_number: str) -> None:
+        await self.client.async_enable_device_live_mode(serial_number=serial_number)
+        self._active_meters[(station_id, device_id)] = (self.hass.loop.time() + 120, serial_number)
+        key = (station_id, device_id)
+        if key not in self._meter_renew_tasks:
+            self._meter_renew_tasks[key] = self.hass.async_create_background_task(
+                self._renew_meter(key), f"{DOMAIN}_meter_{device_id}_live_mode_renew"
+            )
+        self.coordinator.async_set_updated_data(dict(self.coordinator.data or {}))
+
+    async def deactivate_meter(self, station_id: int, device_id: int) -> None:
+        key = (station_id, device_id)
+        self._active_meters.pop(key, None)
+        task = self._meter_renew_tasks.pop(key, None)
+        if task:
+            task.cancel()
+        self.coordinator.async_set_updated_data(dict(self.coordinator.data or {}))
+
+    async def activate_evse(self, station_id: int, device_id: int, serial_number: str) -> None:
+        await self.client.async_enable_device_live_mode(serial_number=serial_number)
+        self._active_evses[(station_id, device_id)] = (self.hass.loop.time() + 120, serial_number)
+        key = (station_id, device_id)
+        if key not in self._evse_renew_tasks:
+            self._evse_renew_tasks[key] = self.hass.async_create_background_task(
+                self._renew_evse(key), f"{DOMAIN}_evse_{device_id}_live_mode_renew"
+            )
+        self.coordinator.async_set_updated_data(dict(self.coordinator.data or {}))
+
+    async def deactivate_evse(self, station_id: int, device_id: int) -> None:
+        key = (station_id, device_id)
+        self._active_evses.pop(key, None)
+        task = self._evse_renew_tasks.pop(key, None)
+        if task:
+            task.cancel()
+        self.coordinator.async_set_updated_data(dict(self.coordinator.data or {}))
+
+    async def _renew_station(self, station_id: int) -> None:
+        try:
+            while station_id in self._active_until:
+                await asyncio.sleep(self._RENEW_INTERVAL)
+                if station_id not in self._active_until:
+                    return
+                try:
+                    await self.client.async_enable_station_live_mode(component_id=station_id)
+                    self._active_until[station_id] = self.hass.loop.time() + 120
+                    _LOGGER.debug("Renewed live mode for station %s", station_id)
+                except Exception as exc:
+                    _LOGGER.debug("Failed to renew live mode for station %s: %s", station_id, exc)
+        except asyncio.CancelledError:
+            raise
+        finally:
+            if self._station_renew_tasks.get(station_id) is asyncio.current_task():
+                self._station_renew_tasks.pop(station_id, None)
+
+    async def _renew_battery(self, key: tuple[int, int]) -> None:
+        station_id, device_id = key
+        try:
+            while key in self._active_batteries:
+                await asyncio.sleep(self._RENEW_INTERVAL)
+                active = self._active_batteries.get(key)
+                if not active:
+                    return
+                _, batteries = active
+                try:
+                    for _, serial_number in batteries:
+                        await self.client.async_enable_device_live_mode(serial_number=serial_number)
+                    self._active_batteries[key] = (self.hass.loop.time() + 120, batteries)
+                    _LOGGER.debug("Renewed battery live mode for station %s, battery %s", station_id, device_id)
+                except Exception as exc:
+                    _LOGGER.debug("Failed to renew battery live mode for station %s, battery %s: %s", station_id, device_id, exc)
+        except asyncio.CancelledError:
+            raise
+        finally:
+            if self._battery_renew_tasks.get(key) is asyncio.current_task():
+                self._battery_renew_tasks.pop(key, None)
+
+    async def _renew_meter(self, key: tuple[int, int]) -> None:
+        station_id, device_id = key
+        try:
+            while key in self._active_meters:
+                await asyncio.sleep(self._RENEW_INTERVAL)
+                active = self._active_meters.get(key)
+                if not active:
+                    return
+                _, serial_number = active
+                try:
+                    await self.client.async_enable_device_live_mode(serial_number=serial_number)
+                    self._active_meters[key] = (self.hass.loop.time() + 120, serial_number)
+                    _LOGGER.debug("Renewed meter live mode for station %s, meter %s", station_id, device_id)
+                except Exception as exc:
+                    _LOGGER.debug("Failed to renew meter live mode for station %s, meter %s: %s", station_id, device_id, exc)
+        except asyncio.CancelledError:
+            raise
+        finally:
+            if self._meter_renew_tasks.get(key) is asyncio.current_task():
+                self._meter_renew_tasks.pop(key, None)
+
+    async def _renew_evse(self, key: tuple[int, int]) -> None:
+        station_id, device_id = key
+        try:
+            while key in self._active_evses:
+                await asyncio.sleep(self._RENEW_INTERVAL)
+                active = self._active_evses.get(key)
+                if not active:
+                    return
+                _, serial_number = active
+                try:
+                    await self.client.async_enable_device_live_mode(serial_number=serial_number)
+                    self._active_evses[key] = (self.hass.loop.time() + 120, serial_number)
+                    _LOGGER.debug("Renewed EVSE live mode for station %s, device %s", station_id, device_id)
+                except Exception as exc:
+                    _LOGGER.debug("Failed to renew EVSE live mode for station %s, device %s: %s", station_id, device_id, exc)
+        except asyncio.CancelledError:
+            raise
+        finally:
+            if self._evse_renew_tasks.get(key) is asyncio.current_task():
+                self._evse_renew_tasks.pop(key, None)
+
+    async def _poll(self) -> None:
+        try:
+            while True:
+                active_stations = [station_id for station_id in self._active_until if self.is_active(station_id)]
+                active_batteries = [key for key in self._active_batteries]
+                active_meters = [key for key in self._active_meters]
+                active_evses = [key for key in self._active_evses]
+
+                for station_id in active_stations:
+                    try:
+                        station_info = await self.client.async_get_station_info(component_id=station_id)
+                        data = dict(self.coordinator.data or {})
+                        stations_info = dict(data.get("stations_info", {}))
+                        stations_info[station_id] = station_info
+                        data["stations_info"] = stations_info
+                        self.coordinator.async_set_updated_data(data)
+                        _LOGGER.debug(
+                            "Live mode refresh completed for station %s: GET %s",
+                            station_id,
+                            STATION_INFO_URL_TEMPLATE.format(component_id=station_id),
+                        )
+                    except Exception as exc:
+                        _LOGGER.debug("Live mode station info refresh failed for %s: %s", station_id, exc)
+
+                for (station_id, _), (_, batteries) in [
+                    (key, self._active_batteries[key]) for key in active_batteries if key in self._active_batteries
+                ]:
+                    for battery_device_id, serial_number in batteries:
+                        try:
+                            battery_links = await self.client.async_get_battery_links(serial_number=serial_number)
+                            data = dict(self.coordinator.data or {})
+                            stations_devices = dict(data.get("stations_devices", {}))
+                            station_devices = dict(stations_devices.get(station_id, {}))
+                            battery_links_data = dict(station_devices.get("battery_links", {}))
+                            battery_links_data[battery_device_id] = battery_links
+                            station_devices["battery_links"] = battery_links_data
+                            stations_devices[station_id] = station_devices
+                            data["stations_devices"] = stations_devices
+                            self.coordinator.async_set_updated_data(data)
+                            _LOGGER.debug(
+                                "Battery live mode refresh completed for station %s, battery %s: GET %s",
+                                station_id,
+                                battery_device_id,
+                                BATTERY_LINKS_URL_TEMPLATE.format(serial_number=serial_number),
+                            )
+                        except Exception as exc:
+                            _LOGGER.debug(
+                                "Battery live mode refresh failed for station %s, battery %s: %s",
+                                station_id,
+                                battery_device_id,
+                                exc,
+                            )
+
+                for (station_id, device_id) in active_meters:
+                    active_meter = self._active_meters.get((station_id, device_id))
+                    if not active_meter:
+                        continue
+                    _, serial_number = active_meter
+                    try:
+                        meter_data = await self.client.async_get_meter_data(serial_number=serial_number)
+                        data = dict(self.coordinator.data or {})
+                        stations_devices = dict(data.get("stations_devices", {}))
+                        station_devices = dict(stations_devices.get(station_id, {}))
+                        meter_data_by_device = dict(station_devices.get("meter_data", {}))
+                        meter_data_by_device[device_id] = meter_data
+                        station_devices["meter_data"] = meter_data_by_device
+                        stations_devices[station_id] = station_devices
+                        data["stations_devices"] = stations_devices
+                        self.coordinator.async_set_updated_data(data)
+                        _LOGGER.debug(
+                            "Meter live mode refresh completed for station %s, meter %s: GET %s",
+                            station_id,
+                            device_id,
+                            METER_DATA_URL_TEMPLATE.format(serial_number=serial_number),
+                        )
+                    except Exception as exc:
+                        _LOGGER.debug(
+                            "Meter live mode refresh failed for station %s, meter %s: %s",
+                            station_id,
+                            device_id,
+                            exc,
+                        )
+
+                for (station_id, device_id) in active_evses:
+                    active_evse = self._active_evses.get((station_id, device_id))
+                    if not active_evse:
+                        continue
+                    _, serial_number = active_evse
+                    try:
+                        evse_data = await self.client.async_get_evse_data(serial_number=serial_number)
+                        data = dict(self.coordinator.data or {})
+                        stations_devices = dict(data.get("stations_devices", {}))
+                        station_devices = dict(stations_devices.get(station_id, {}))
+                        evse_data_by_device = dict(station_devices.get("evse_data", {}))
+                        evse_data_by_device[device_id] = evse_data
+                        station_devices["evse_data"] = evse_data_by_device
+                        stations_devices[station_id] = station_devices
+                        data["stations_devices"] = stations_devices
+                        self.coordinator.async_set_updated_data(data)
+                        _LOGGER.debug(
+                            "EVSE live mode refresh completed for station %s, device %s: GET %s",
+                            station_id,
+                            device_id,
+                            EVSE_DATA_URL_TEMPLATE.format(serial_number=serial_number),
+                        )
+                    except Exception as exc:
+                        _LOGGER.debug(
+                            "EVSE live mode refresh failed for station %s, device %s: %s",
+                            station_id,
+                            device_id,
+                            exc,
+                        )
+
+                await asyncio.sleep(6)
+        except asyncio.CancelledError:
+            raise
+
+    async def async_stop(self) -> None:
+        renew_tasks = [
+            *self._station_renew_tasks.values(),
+            *self._battery_renew_tasks.values(),
+            *self._meter_renew_tasks.values(),
+            *self._evse_renew_tasks.values(),
+        ]
+        for task in renew_tasks:
+            task.cancel()
+        if renew_tasks:
+            await asyncio.gather(*renew_tasks, return_exceptions=True)
+        self._task.cancel()
+        try:
+            await self._task
+        except asyncio.CancelledError:
+            pass
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -23,7 +345,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     default_minutes = int(DEFAULT_SCAN_INTERVAL.total_seconds() / 60)
     refresh_period = entry.options.get("refresh_period", entry.data.get("refresh_period", default_minutes))
     
-    _LOGGER.info("Setting up Izypower Cloud integration with refresh period: %s minutes", refresh_period)
+    _LOGGER.info("Setting up Isypower Cloud integration with refresh period: %s minutes", refresh_period)
 
     client = IzyClient(hass, username, password)
     last_hourly_stats_slot_by_station: dict[int, str] = {}
@@ -162,6 +484,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                         stations_devices[station_id]["battery_cmd"] = {}
                         stations_devices[station_id]["temp_data"] = {}
                         stations_devices[station_id]["meter_base_info"] = {}
+                        stations_devices[station_id]["meter_data"] = {}
+                        stations_devices[station_id]["evse_data"] = {}
+                        stations_devices[station_id]["evse_cmd"] = {}
+                        stations_devices[station_id]["evse_intelligent"] = {}
+                        stations_devices[station_id]["evse_derate"] = {}
+                        stations_devices[station_id]["evse_priority"] = {}
                         
                         for device_record in device_records:
                             device_sn = device_record.get("sn") or device_record.get("serialNumber")
@@ -251,6 +579,99 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                                         _LOGGER.warning("Failed to fetch meter base info for device SN %s: %s", device_sn, meter_exc)
                                         if device_id:
                                             stations_devices[station_id]["meter_base_info"][device_id] = {}
+
+                                    try:
+                                        meter_data = await client.async_get_meter_data(serial_number=device_sn)
+                                        if device_id:
+                                            stations_devices[station_id]["meter_data"][device_id] = meter_data
+                                        _LOGGER.debug("Meter data for device ID %s (SN %s): %s", device_id, device_sn, meter_data)
+                                    except ServerUnavailableError as meter_data_exc:
+                                        _LOGGER.debug("Server unavailable when fetching meter data for SN %s: %s", device_sn, meter_data_exc)
+                                        if device_id:
+                                            stations_devices[station_id]["meter_data"][device_id] = {}
+                                    except Exception as meter_data_exc:
+                                        _LOGGER.warning("Failed to fetch meter data for SN %s: %s", device_sn, meter_data_exc)
+                                        if device_id:
+                                            stations_devices[station_id]["meter_data"][device_id] = {}
+
+                                if device_type_code == "evse":
+                                    try:
+                                        evse_data = await client.async_get_evse_data(serial_number=device_sn)
+                                        if device_id:
+                                            stations_devices[station_id]["evse_data"][device_id] = evse_data
+                                        _LOGGER.debug("EVSE data for device ID %s (SN %s): %s", device_id, device_sn, evse_data)
+                                    except ServerUnavailableError as evse_exc:
+                                        _LOGGER.debug("Server unavailable when fetching EVSE data for SN %s: %s", device_sn, evse_exc)
+                                        if device_id:
+                                            stations_devices[station_id]["evse_data"][device_id] = {}
+                                    except Exception as evse_exc:
+                                        _LOGGER.warning("Failed to fetch EVSE data for SN %s: %s", device_sn, evse_exc)
+                                        if device_id:
+                                            stations_devices[station_id]["evse_data"][device_id] = {}
+
+                                if device_type_code == "evse":
+                                    _LOGGER.debug(
+                                        "Detected EVSE device %s (ID: %s, SN: %s), fetching command data",
+                                        device_name,
+                                        device_id,
+                                        device_sn,
+                                    )
+                                    try:
+                                        evse_cmd_data = await client.async_get_battery_cmd(serial_number=device_sn)
+                                        if device_id:
+                                            stations_devices[station_id]["evse_cmd"][device_id] = evse_cmd_data
+                                        _LOGGER.debug(
+                                            "EVSE command data cached for station %s, device ID %s (SN %s): %s",
+                                            station_id,
+                                            device_id,
+                                            device_sn,
+                                            evse_cmd_data,
+                                        )
+                                    except ServerUnavailableError as evse_cmd_exc:
+                                        _LOGGER.debug("Server unavailable when fetching EVSE command data for SN %s: %s", device_sn, evse_cmd_exc)
+                                        if device_id:
+                                            stations_devices[station_id]["evse_cmd"][device_id] = {}
+                                    except Exception as evse_cmd_exc:
+                                        _LOGGER.warning("Failed to fetch EVSE command data for SN %s: %s", device_sn, evse_cmd_exc)
+                                        if device_id:
+                                            stations_devices[station_id]["evse_cmd"][device_id] = {}
+
+                                    try:
+                                        evse_intelligent = await client.async_get_evse_intelligent_value(serial_number=device_sn)
+                                        if device_id:
+                                            stations_devices[station_id]["evse_intelligent"][device_id] = evse_intelligent
+                                        _LOGGER.debug("EVSE intelligent value for device ID %s (SN %s): %s", device_id, device_sn, evse_intelligent)
+                                    except ServerUnavailableError as evse_int_exc:
+                                        _LOGGER.debug("Server unavailable when fetching EVSE intelligent value for SN %s: %s", device_sn, evse_int_exc)
+                                        if device_id:
+                                            stations_devices[station_id]["evse_intelligent"][device_id] = {}
+                                    except Exception as evse_int_exc:
+                                        _LOGGER.warning("Failed to fetch EVSE intelligent value for SN %s: %s", device_sn, evse_int_exc)
+                                        if device_id:
+                                            stations_devices[station_id]["evse_intelligent"][device_id] = {}
+
+                                    try:
+                                        evse_derate = await client.async_get_evse_power_derate(serial_number=device_sn)
+                                        if device_id:
+                                            stations_devices[station_id]["evse_derate"][device_id] = evse_derate
+                                        _LOGGER.debug("EVSE power derate for device ID %s (SN %s): %s", device_id, device_sn, evse_derate)
+                                    except ServerUnavailableError as evse_derate_exc:
+                                        _LOGGER.debug("Server unavailable when fetching EVSE power derate for SN %s: %s", device_sn, evse_derate_exc)
+                                        if device_id:
+                                            stations_devices[station_id]["evse_derate"][device_id] = {}
+                                    except Exception as evse_derate_exc:
+                                        _LOGGER.warning("Failed to fetch EVSE power derate for SN %s: %s", device_sn, evse_derate_exc)
+                                        if device_id:
+                                            stations_devices[station_id]["evse_derate"][device_id] = {}
+
+                                    try:
+                                        evse_priority = await client.async_get_evse_priority(station_id=station_id)
+                                        stations_devices[station_id]["evse_priority"] = evse_priority
+                                        _LOGGER.debug("EVSE priority for station %s: %s", station_id, evse_priority)
+                                    except ServerUnavailableError as evse_prio_exc:
+                                        _LOGGER.debug("Server unavailable when fetching EVSE priority for station %s: %s", station_id, evse_prio_exc)
+                                    except Exception as evse_prio_exc:
+                                        _LOGGER.warning("Failed to fetch EVSE priority for station %s: %s", station_id, evse_prio_exc)
                         
                         # Fetch device upgrade information for the station
                         try:
@@ -287,11 +708,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Fetch initial data
     await coordinator.async_config_entry_first_refresh()
+    live_mode = LiveModeManager(hass, client, coordinator)
 
     # Store data
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
         "client": client,
         "coordinator": coordinator,
+        "live_mode": live_mode,
     }
 
     await hass.config_entries.async_forward_entry_setups(entry, ["sensor", "switch", "number", "button", "select"])
@@ -300,6 +723,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Register options update listener
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
+    entry.async_on_unload(live_mode.async_stop)
 
     return True
 

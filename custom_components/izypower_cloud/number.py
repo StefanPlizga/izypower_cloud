@@ -21,7 +21,7 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up Izypower Cloud number entities."""
+    """Set up Isypower Cloud number entities."""
     data = hass.data[DOMAIN][entry.entry_id]
     coordinator = data["coordinator"]
     client = data["client"]
@@ -44,9 +44,9 @@ async def async_setup_entry(
             battery_cmd_dict = stations_devices[station_id].get("battery_cmd", {})
             
             for device_record in device_records:
-                device_type = device_record.get("deviceType")
+                device_type = str(device_record.get("deviceType", "")).lower()
                 device_id = device_record.get("deviceId")
-                device_sn = device_record.get("sn")
+                device_sn = device_record.get("sn") or device_record.get("serialNumber")
                 device_name = device_record.get("deviceName", "Unknown")
                 
                 # Meter injection limit
@@ -62,7 +62,30 @@ async def async_setup_entry(
                             device_name,
                         )
                     )
-                
+
+                if device_type == "evse" and device_id and device_sn:
+                    entities.append(
+                        EVSEMaxChargingPowerNumber(
+                            coordinator,
+                            client,
+                            station_id,
+                            station_name,
+                            device_id,
+                            device_sn,
+                            device_name,
+                        )
+                    )
+                    entities.append(
+                        EVSEPowerDerateNumber(
+                            coordinator,
+                            client,
+                            station_id,
+                            station_name,
+                            device_id,
+                            device_sn,
+                            device_name,
+                        )
+                    )
                 # Battery min_soc (discharge limit)
                 if device_type == "battery" and device_id and device_sn and device_id in battery_cmd_dict:
                     _LOGGER.debug("Creating min_soc number for battery device: %s (ID: %s, SN: %s)", 
@@ -157,6 +180,148 @@ async def async_setup_entry(
                         )
     
     async_add_entities(entities)
+
+
+class EVSEPowerDerateNumber(CoordinatorEntity, NumberEntity):
+    """Number entity for EVSE power derate."""
+
+    has_entity_name = True
+    _attr_mode = NumberMode.BOX
+    _attr_native_min_value = 0
+    _attr_native_max_value = 64000
+    _attr_native_step = 10
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
+
+    def __init__(self, coordinator, client, station_id: int, station_name: str,
+                 device_id: int, device_sn: str, device_name: str):
+        super().__init__(coordinator)
+        self._client = client
+        self._station_id = station_id
+        self._station_name = station_name
+        self._device_id = device_id
+        self._device_sn = device_sn
+        self._device_name = device_name
+        self._attr_unique_id = f"{ENTITY_ID_PREFIX}_device_{device_id}_evse_power_derate"
+        self._attr_translation_key = "evse_power_derate"
+
+    @property
+    def device_info(self):
+        """Return the EVSE device information."""
+        return {
+            "identifiers": {(DOMAIN, f"{ENTITY_ID_PREFIX}_device_{self._device_id}")},
+        }
+
+    def _get_derate_data(self) -> dict:
+        coordinator_data = self.coordinator.data or {}
+        station_devices = coordinator_data.get("stations_devices", {}).get(self._station_id, {})
+        return _get_by_device_id(station_devices.get("evse_derate", {}), self._device_id) or {}
+
+    @property
+    def native_value(self) -> float | None:
+        return self._get_derate_data().get("value")
+
+    @property
+    def available(self) -> bool:
+        if not self.coordinator.last_update_success:
+            return False
+        return "value" in self._get_derate_data()
+
+    async def async_set_native_value(self, value: float) -> None:
+        try:
+            await self._client.async_set_evse_power_derate(
+                serial_number=self._device_sn,
+                value=int(value),
+            )
+            derate_data = await self._client.async_get_evse_power_derate(serial_number=self._device_sn)
+            data = dict(self.coordinator.data or {})
+            stations_devices = dict(data.get("stations_devices", {}))
+            station_devices = dict(stations_devices.get(self._station_id, {}))
+            evse_derate = dict(station_devices.get("evse_derate", {}))
+            evse_derate[self._device_id] = derate_data
+            station_devices["evse_derate"] = evse_derate
+            stations_devices[self._station_id] = station_devices
+            data["stations_devices"] = stations_devices
+            self.coordinator.async_set_updated_data(data)
+        except ServerUnavailableError as exc:
+            _LOGGER.info("Server temporarily unavailable when setting EVSE power derate: %s", exc)
+        except Exception as exc:
+            _LOGGER.error("Failed to set EVSE power derate for %s: %s", self._device_sn, exc)
+
+
+class EVSEMaxChargingPowerNumber(CoordinatorEntity, NumberEntity):
+    """Number entity for EVSE maximum charging power."""
+    has_entity_name = True
+    _attr_mode = NumberMode.BOX
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
+
+    def __init__(self, coordinator, client, station_id: int, station_name: str,
+                 device_id: int, device_sn: str, device_name: str):
+        super().__init__(coordinator)
+        self._client = client
+        self._station_id = station_id
+        self._station_name = station_name
+        self._device_id = device_id
+        self._device_sn = device_sn
+        self._device_name = device_name
+        self._attr_unique_id = f"{ENTITY_ID_PREFIX}_device_{device_id}_evse_max_charging_power"
+        self._attr_translation_key = "evse_max_charging_power"
+
+    @property
+    def device_info(self):
+        """Return the EVSE device information."""
+        return {
+            "identifiers": {(DOMAIN, f"{ENTITY_ID_PREFIX}_device_{self._device_id}")},
+        }
+
+    def _get_command_data(self) -> dict:
+        coordinator_data = self.coordinator.data or {}
+        station_devices = coordinator_data.get("stations_devices", {}).get(self._station_id, {})
+        return station_devices.get("evse_cmd", {}).get(self._device_id, {}).get("data", {})
+
+    @property
+    def native_value(self) -> float | None:
+        return self._get_command_data().get("power")
+
+    @property
+    def native_min_value(self) -> float:
+        return self._get_command_data().get("min_power", 0)
+
+    @property
+    def native_max_value(self) -> float:
+        return self._get_command_data().get("max_power", 0)
+
+    @property
+    def native_step(self) -> float:
+        return self._get_command_data().get("interval", 1)
+
+    @property
+    def available(self) -> bool:
+        if not self.coordinator.last_update_success:
+            return False
+        coordinator_data = self.coordinator.data or {}
+        station_devices = coordinator_data.get("stations_devices", {}).get(self._station_id, {})
+        return self._device_id in station_devices.get("evse_cmd", {})
+
+    async def async_set_native_value(self, value: float) -> None:
+        try:
+            await self._client.async_set_evse_charge_power(
+                serial_number=self._device_sn,
+                value=int(value),
+            )
+            command_data = await self._client.async_get_battery_cmd(serial_number=self._device_sn)
+            data = dict(self.coordinator.data or {})
+            stations_devices = dict(data.get("stations_devices", {}))
+            station_devices = dict(stations_devices.get(self._station_id, {}))
+            evse_cmd = dict(station_devices.get("evse_cmd", {}))
+            evse_cmd[self._device_id] = command_data
+            station_devices["evse_cmd"] = evse_cmd
+            stations_devices[self._station_id] = station_devices
+            data["stations_devices"] = stations_devices
+            self.coordinator.async_set_updated_data(data)
+        except ServerUnavailableError as exc:
+            _LOGGER.info("Server temporarily unavailable when setting EVSE charging power: %s", exc)
+        except Exception as exc:
+            _LOGGER.error("Failed to set EVSE charging power for %s: %s", self._device_sn, exc)
 
 
 class MeterInjectionLimitNumber(CoordinatorEntity, NumberEntity):

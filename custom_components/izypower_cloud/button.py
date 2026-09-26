@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from homeassistant.components.button import ButtonEntity
 from homeassistant.core import HomeAssistant
@@ -20,7 +19,7 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up Izypower Cloud button entities."""
+    """Set up Isypower Cloud button entities."""
     data = hass.data[DOMAIN][entry.entry_id]
     coordinator = data["coordinator"]
     client = data["client"]
@@ -31,7 +30,7 @@ async def async_setup_entry(
     coordinator_data = coordinator.data or {}
     stations_data = coordinator_data.get("stations", {}).get("data", {}).get("records", [])
     stations_devices = coordinator_data.get("stations_devices", {})
-    
+
     # Create button entities for each battery device
     for station_record in stations_data:
         station_id = station_record.get("stationsId")
@@ -44,7 +43,7 @@ async def async_setup_entry(
             for device_record in device_records:
                 device_type = device_record.get("deviceType")
                 device_id = device_record.get("deviceId")
-                device_sn = device_record.get("sn")
+                device_sn = device_record.get("sn") or device_record.get("serialNumber")
                 device_name = device_record.get("deviceName", "Unknown")
                 
                 # Create buttons for all battery devices with a serial number

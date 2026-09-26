@@ -2,8 +2,8 @@
   "config": {
     "step": {
       "user": {
-        "title": "Izypower Cloud : Configuration",
-        "description": "Entrez vos identifiants Izypower Cloud et paramètres.",
+        "title": "Isypower Cloud : Configuration",
+        "description": "Entrez vos identifiants Isypower Cloud et paramètres.",
         "data": {
           "username": "Nom d'utilisateur",
           "password": "Mot de passe",
@@ -11,8 +11,8 @@
         }
       },
       "reauth_confirm": {
-        "title": "Ré-authentifier Izypower Cloud",
-        "description": "Vos identifiants Izypower Cloud doivent être mis à jour. Entrez votre nom d'utilisateur et mot de passe.",
+        "title": "Ré-authentifier Isypower Cloud",
+        "description": "Vos identifiants Isypower Cloud doivent être mis à jour. Entrez votre nom d'utilisateur et mot de passe.",
         "data": {
           "username": "Nom d'utilisateur",
           "password": "Mot de passe"
@@ -21,7 +21,7 @@
     },
     "error": {
       "invalid_auth": "Nom d'utilisateur ou mot de passe invalide",
-      "cannot_connect": "Impossible de se connecter à Izypower Cloud",
+      "cannot_connect": "Impossible de se connecter à Isypower Cloud",
       "duplicate_username": "Ce nom d'utilisateur est déjà configuré. Une seule intégration par compte est autorisée.",
       "refresh_period_too_low": "La fréquence d'actualisation doit être d'au moins 3 minutes"
     }
@@ -29,7 +29,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Izypower Cloud : Options",
+        "title": "Isypower Cloud : Options",
         "description": "Configurez les paramètres de fréquence d'actualisation.",
         "data": {
           "refresh_period": "Fréquence d'actualisation (minutes)"
@@ -38,7 +38,7 @@
     },
     "error": {
       "invalid_auth": "Nom d'utilisateur ou mot de passe invalide",
-      "cannot_connect": "Impossible de se connecter à Izypower Cloud",
+      "cannot_connect": "Impossible de se connecter à Isypower Cloud",
       "refresh_period_too_low": "La fréquence d'actualisation doit être d'au moins 3 minutes"
     }
   },
@@ -64,6 +64,49 @@
       },
       "production_power": {
         "name": "Puissance PV"
+      },
+      "ev_power": {
+        "name": "Puissance Borne de recharge"
+      },
+      "meter_ct_apparent_power": {
+        "name": "Puissance apparente"
+      },
+      "meter_ct_current": {
+        "name": "Courant"
+      },
+      "meter_ct_voltage": {
+        "name": "Tension"
+      },
+      "meter_ct_mode": {
+        "name": "Mode",
+        "state": {
+          "consumption": "Consommation",
+          "production": "Production"
+        }
+      },
+      "ev_day": {
+        "name": "Borne de recharge Jour"
+      },
+      "ev_month": {
+        "name": "Borne de recharge Mois"
+      },
+      "ev_year": {
+        "name": "Borne de recharge Année"
+      },
+      "ev_total": {
+        "name": "Borne de recharge Total"
+      },
+      "ev_rate_all": {
+        "name": "Taux Borne de recharge Total"
+      },
+      "ev_rate_day": {
+        "name": "Taux Borne de recharge Jour"
+      },
+      "ev_rate_month": {
+        "name": "Taux Borne de recharge Mois"
+      },
+      "ev_rate_year": {
+        "name": "Taux Borne de recharge Année"
       },
       "production_month": {
         "name": "Production Mois"
@@ -336,6 +379,21 @@
       }
     },
     "switch": {
+      "live_mode": {
+        "name": "Mode Live"
+      },
+      "evse_priority": {
+        "name": "Priorité Borne de charge"
+      },
+      "evse_started": {
+        "name": "Démarré"
+      },
+      "evse_enable_grid": {
+        "name": "Démarrage avec le réseau (Intelligent)"
+      },
+      "evse_enable_battery": {
+        "name": "Utiliser la batterie (Intelligent)"
+      },
       "injection_control": {
         "name": "Blocage d'injection"
       },
@@ -347,6 +405,12 @@
       }
     },
     "number": {
+      "evse_power_derate": {
+        "name": "Délestage"
+      },
+      "evse_max_charging_power": {
+        "name": "Puissance charge"
+      },
       "injection_limit": {
         "name": "Limite d'injection"
       },
@@ -360,16 +424,24 @@
         "name": "Puissance Max Décharge"
       },
       "battery_manual_charge_power": {
-        "name": "Puissance Charge (Manuelle)"
+        "name": "Puissance Charge (Manuel)"
       },
       "battery_manual_discharge_power": {
-        "name": "Puissance Décharge (Manuelle)"
+        "name": "Puissance Décharge (Manuel)"
       },
       "battery_calibration_interval": {
         "name": "Intervalle Calibration"
       }
     },
     "select": {
+      "evse_control_mode": {
+        "name": "Mode de Contrôle",
+        "state": {
+          "0": "Intelligent",
+          "1": "Manuel",
+          "2": "Hybride"
+        }
+      },
       "battery_control_mode": {
         "name": "Mode de Contrôle",
         "state": {

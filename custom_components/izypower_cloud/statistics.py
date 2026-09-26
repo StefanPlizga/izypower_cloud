@@ -1,4 +1,4 @@
-"""Hourly external statistics for Izypower Cloud."""
+"""Hourly external statistics for Isypower Cloud."""
 from __future__ import annotations
 
 import logging
@@ -19,7 +19,7 @@ from homeassistant.components.recorder.statistics import (
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util, slugify
 
-from .const import DOMAIN
+from .const import DOMAIN, DISPLAY_NAME_PREFIX
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -30,6 +30,7 @@ _STATISTIC_FIELDS: list[str] = [
     "energy",
     "storage_in",
     "storage_out",
+    "ev",
 ]
 
 _METRIC_LABELS: dict[str, str] = {
@@ -38,6 +39,7 @@ _METRIC_LABELS: dict[str, str] = {
     "energy": "Production",
     "storage_in": "Batterie Charge",
     "storage_out": "Batterie Decharge",
+    "ev": "Borne de recharge",
 }
 
 _STAT_SUFFIXES: dict[str, str] = {
@@ -46,12 +48,13 @@ _STAT_SUFFIXES: dict[str, str] = {
     "energy": "production_stats",
     "storage_in": "batterie_charge_stats",
     "storage_out": "batterie_decharge_stats",
+    "ev": "borne_recharge_stats",
 }
 
 
 def _integration_display_name() -> str:
-    """Return a readable integration title from DOMAIN."""
-    return DOMAIN.replace("_", " ").title()
+    """Return the readable integration title for statistic names."""
+    return DISPLAY_NAME_PREFIX
 
 
 def _normalize_stat_name(
