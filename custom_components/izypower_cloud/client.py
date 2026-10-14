@@ -74,6 +74,11 @@ class IzyClient:
 
                     token = None
                     if isinstance(data, dict):
+                        code = data.get("code", resp.status)
+                        if resp.status != 200 or code != 200:
+                            raise Exception(
+                                f"Login failed: HTTP {resp.status}, code {code}, msg: {data.get('msg')}"
+                            )
                         token = data.get("data", {}).get("token")
                     if not token:
                         _LOGGER.error("Login failed or token missing")
