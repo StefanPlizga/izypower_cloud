@@ -531,10 +531,10 @@ class BatteryManualModeSelect(CoordinatorEntity, SelectEntity):
 
 
 class BatteryOffgridModeSelect(CoordinatorEntity, SelectEntity):
-    """Select entity for battery off-grid mode (1=Invester, 2=Always, 3=When power cut)."""
+    """Select entity for battery off-grid mode (1=Inverter, 2=Always)."""
     
     has_entity_name = True
-    _attr_options = ["1", "2", "3"]
+    _attr_options = ["1", "2"]
     
     def __init__(
         self,
@@ -578,8 +578,8 @@ class BatteryOffgridModeSelect(CoordinatorEntity, SelectEntity):
             device_cmd = _get_by_device_id(battery_cmd, self._device_id) or {}
             
             offgrid_mode = device_cmd.get("data", {}).get("offGrid", {}).get("value")
-            
-            return str(offgrid_mode) if offgrid_mode is not None else None
+            option = str(offgrid_mode) if offgrid_mode is not None else None
+            return option if option in self._attr_options else None
         
         return None
     
@@ -744,4 +744,3 @@ class BatteryCalibrationTimeSelect(CoordinatorEntity, SelectEntity):
             _LOGGER.info("Server temporarily unavailable when setting battery calibration time: %s", exc)
         except Exception as exc:
             _LOGGER.error("Failed to set battery calibration time for %s: %s", self._device_sn, exc)
-

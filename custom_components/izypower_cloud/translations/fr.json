@@ -462,8 +462,7 @@
         "name": "Mode Prise Secours",
         "state": {
           "1": "Micro-onduleur",
-          "2": "Toujours",
-          "3": "Lors de coupure"
+          "2": "Toujours"
         }
       },
       "battery_calibration_time": {

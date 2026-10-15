@@ -458,8 +458,7 @@
         "name": "Backup Outlet Mode",
         "state": {
           "1": "Invester",
-          "2": "Always",
-          "3": "When power cut"
+          "2": "Always"
         }
       },
       "battery_calibration_time": {
